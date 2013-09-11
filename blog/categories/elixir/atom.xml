@@ -1,0 +1,499 @@
+<?xml version="1.0" encoding="utf-8"?>
+<feed xmlns="http://www.w3.org/2005/Atom">
+
+  <title><![CDATA[Category: elixir | A Cauldron of Black and White Stones]]></title>
+  <link href="http://pminten.github.io/blog/categories/elixir/atom.xml" rel="self"/>
+  <link href="http://pminten.github.io/"/>
+  <updated>2013-09-11T11:29:38+02:00</updated>
+  <id>http://pminten.github.io/</id>
+  <author>
+    <name><![CDATA[Peter Minten]]></name>
+    
+  </author>
+  <generator uri="http://octopress.org/">Octopress</generator>
+
+  
+  <entry>
+    <title type="html"><![CDATA[Elixir's Enumerable]]></title>
+    <link href="http://pminten.github.io/blog/2013/09/05/elixirs-enumerable/"/>
+    <updated>2013-09-05T00:00:00+02:00</updated>
+    <id>http://pminten.github.io/blog/2013/09/05/elixirs-enumerable</id>
+    <content type="html"><![CDATA[<p>Included file 'JB/setup' not found in _includes directory</p>
+
+<p>Sometimes Elixir can be quite a pain. Often it&rsquo;s because the libraries don&rsquo;t yet
+have what you need or because a feature that looks like it&rsquo;s going to do exactly
+what you want turns out to be more limited than you would like (<code>|&gt;</code> I&rsquo;m looking
+at you). Sometimes however the pain is of a different kind, the kind you get
+from trying to understand why that seemingly logical Go move is the exact
+opposite of what&rsquo;s good, the kind you get from reading about category theory,
+the kind you get from trying to use the newest kind of lenses in Haskell. In
+other words the kind of pain that comes from desperately trying to understand
+something that seems to make no sense at all.</p>
+
+<p>And then, after beating your head against the proverbial desk enough time, you
+suddenly realize that things are starting to make sense and that it&rsquo;s actually
+all quite clear.</p>
+
+<p>Today I had one of those moments. After trying to produce a better stream design
+based on functions that return a value and a replacement for themselves (think
+Continuation Passing Style) I ran into a problem where my <code>Iter.to_list</code> was
+much slower than <code>Enum.to_list</code>. When I asked on IRC @ericmj told me that it&rsquo;s
+just not possible to make my iterator approach work fast enough and that that&rsquo;s
+the reason Elixir switched to a reduce based approach. He also gave me the
+excellent tip to look at Clojure&rsquo;s <a href="http://clojure.org/reducers">reducers</a>,
+which was the inspiration for Elixir&rsquo;s design.</p>
+
+<p>While the blog posts linked from Clojure&rsquo;s documentation are informative they
+are (naturally) about Clojure and not everybody understands that. So here&rsquo;s an
+attempt to explain things in an Elixir context.</p>
+
+<p>This post consists of four main parts.</p>
+
+<ul>
+<li><a href="#uses">A bit about what <code>Enumerable</code>, <code>Enum</code> and <code>Stream</code> are useful for.</a></li>
+<li><a href="#enum">An explanation of how <code>Enum</code> is implemented in terms of <code>Enumerable</code>.</a></li>
+<li><a href="#reduce">A short dicussion on writing your own <code>reduce</code> function.</a></li>
+<li><a href="#stream">An explanation of how streams are used to efficiently compose
+enumerables.</a></li>
+</ul>
+
+
+<h2>Enumerable, Enum and Stream <a name="uses">&nbsp;</a></h2>
+
+<p>As the user of Elixir code you will often use <code>Enum</code>, sometimes use <code>Stream</code> and
+rarely implement <code>Enumerable</code>. The
+<a href="http://elixir-lang.org/docs/stable/Enum.html"><code>Enum</code></a> module is where most of
+Elixir&rsquo;s collection manipulation code resides. It has your basic <code>map/2</code>,
+<code>filter/2</code> and <code>reduce/3</code> functions as well as stuff like <code>at/2</code> / <code>fetch/2</code>
+(look up an element given an index), <code>drop/2</code> and <code>min/1</code>. Whenever you want to
+do something with a collection look in <code>Enum</code> first. Often the tools you need
+are there.</p>
+
+<p>Sometimes the methods from <code>Enum</code> are somewhat inefficient. Take for example
+tripling some numbers and filtering out multiples of 7 afterwards
+(<code>Enum.filter_map</code> doesn&rsquo;t help here, it filters before mapping). You could
+write <code>Enum.map(l, &amp;(&amp;1 * 3)) |&gt; Enum.filter(&amp;(rem(&amp;1, 7) != 0))</code> but there&rsquo;s an
+inefficiency. It comes from <code>Enum.map</code> constructing a list which is immediately
+&ldquo;eaten&rdquo; by <code>Enum.filter</code>.  This work is unnecessary if <code>Enum.map</code> could somehow
+pass elements to <code>Enum.filter</code> one by one.</p>
+
+<p>This is where streams come in. By simply writing <code>Stream.map(l, &amp;(&amp;1 * 3)) |&gt;
+Enum.filter(&amp;(rem(&amp;1, 7) != 0))</code> the inefficiency is removed. Instead of
+returning a list <code>Stream.map/2</code> returns a stream for which there is an
+<code>Enumerable</code> implementation so it can be used with <code>Enum</code>. Now what <code>Stream.map</code>
+does is it creates a stream that wraps an enumerable and whenever an element is
+requested it fetches the element from the enumerable but before passing it along
+transforms it using the function given to <code>Stream.map</code>.</p>
+
+<p>Because all the <code>Stream</code> functions return streams sooner or later you&rsquo;ll need to
+use <code>Enum</code> functions to get a list or some other value (such as a sum) out of
+the stream.</p>
+
+<p>It&rsquo;s actually pretty easy to make your own data structures work with <code>Enum</code> and
+<code>Stream</code>. For that you need to define your data structure as a record and add an
+<code>Enumerable</code> implementation for it.</p>
+
+<h2>Reduce and Enum <a name="enum">&nbsp;</a></h2>
+
+<p>The <code>reduce</code> function, also known as (left) fold in other languages, is the most
+direct translation of loops like this:</p>
+
+<p><div class="highlight"><pre><code class="ruby"><span class="n">a</span> <span class="o">=</span> <span class="mi">1</span>
+<span class="k">for</span> <span class="n">i</span> <span class="k">in</span> <span class="mi">1</span><span class="o">.</span><span class="n">.</span><span class="mi">10</span> <span class="k">do</span>
+  <span class="n">a</span> <span class="o">=</span> <span class="n">a</span> <span class="o">*</span> <span class="n">i</span>
+<span class="k">end</span><span class="o">&lt;</span><span class="sr">/p&gt;</span>
+
+<span class="sr">&lt;h1&gt;a is now 3628800&lt;/</span><span class="n">h1</span><span class="o">&gt;</span>
+
+<span class="o">&lt;</span><span class="nb">p</span><span class="o">&gt;</span>
+</code></pre></div></p>
+
+<p>In Elixir we would write such a loop using <code>Enum.reduce/3</code> as:</p>
+
+<p><div class="highlight"><pre><code class="elixir"><span class="no">Enum</span><span class="o">.</span><span class="n">reduce</span><span class="p">(</span><span class="m">1</span><span class="o">..</span><span class="m">10</span><span class="p">,</span> <span class="m">1</span><span class="p">,</span> <span class="k">fn</span> <span class="p">(</span><span class="n">i</span><span class="p">,</span> <span class="n">acc</span><span class="p">)</span> <span class="err">&amp;</span><span class="n">ndash</span><span class="p">;</span><span class="err">&gt;</span><span class="o">&lt;/</span><span class="n">p</span><span class="o">&gt;</span>
+
+<span class="o">&lt;</span><span class="n">pre</span><span class="err">&gt;</span><span class="o">&lt;</span><span class="n">code</span><span class="o">&gt;</span><span class="n">acc</span> <span class="o">*</span> <span class="n">i</span>
+<span class="o">&lt;/</span><span class="n">code</span><span class="err">&gt;</span><span class="o">&lt;/</span><span class="n">pre</span><span class="o">&gt;</span>
+
+<span class="o">&lt;</span><span class="n">p</span><span class="o">&gt;</span><span class="k">end</span><span class="p">)</span><span class="o">&lt;/</span><span class="n">p</span><span class="o">&gt;</span>
+
+<span class="o">&lt;</span><span class="n">h1</span><span class="o">&gt;</span><span class="n">returns</span> <span class="m">3628800</span><span class="o">&lt;/</span><span class="n">h1</span><span class="o">&gt;</span>
+
+<span class="o">&lt;</span><span class="n">p</span><span class="o">&gt;</span>
+</code></pre></div></p>
+
+<p>Simple enough, isn&rsquo;t it. There&rsquo;s nothing complicated about reduce, well not
+until you look at the implementation of streams.</p>
+
+<p>Reducing works by walking down a data structure (typically a list) and to call a
+function for each element. The function gets passed the element from the list
+and a state value (called an accumulator) and is expected to return a new state
+value, which gets passed to the function the next time it&rsquo;s called.  The initial
+state value is what you pass to <code>reduce</code> as the second argument. From now on I
+will refer to state values as accumulators.</p>
+
+<p>All functions in <code>Enum</code> are conceptually based on this simple function (more on
+that later). For example <code>map/2</code> can be very efficiently expressed using a reduce.
+Here&rsquo;s the typical code for map:</p>
+
+<p><div class="highlight"><pre><code class="elixir"><span class="k">def</span> <span class="n">map</span><span class="p">([],</span> <span class="n">_</span><span class="p">),</span> <span class="k">do</span><span class="p">:</span> <span class="p">[]</span>
+<span class="k">def</span> <span class="n">map</span><span class="p">([</span><span class="n">h</span><span class="o">|</span><span class="n">t</span><span class="p">],</span> <span class="n">f</span><span class="p">),</span> <span class="k">do</span><span class="p">:</span> <span class="p">[</span><span class="n">f</span><span class="o">.</span><span class="p">(</span><span class="n">h</span><span class="p">)</span><span class="o">|</span><span class="n">t</span><span class="p">]</span>
+</code></pre></div></p>
+
+<p>Err, wait a minute. That can&rsquo;t be right. This function isn&rsquo;t tail recursive and
+will thus eat much more stack memory than it needs to. This is more realistic:</p>
+
+<p><div class="highlight"><pre><code class="elixir"><span class="k">def</span> <span class="n">map</span><span class="p">(</span><span class="n">l</span><span class="p">,</span> <span class="n">f</span><span class="p">),</span> <span class="k">do</span><span class="p">:</span> <span class="n">do_map</span><span class="p">(</span><span class="n">l</span><span class="p">,</span> <span class="n">f</span><span class="p">,</span> <span class="p">[])</span><span class="o">&lt;/</span><span class="n">p</span><span class="o">&gt;</span>
+
+<span class="o">&lt;</span><span class="n">p</span><span class="o">&gt;</span><span class="k">defp</span> <span class="n">do_map</span><span class="p">([],</span> <span class="n">f</span><span class="p">,</span> <span class="n">acc</span><span class="p">),</span> <span class="k">do</span><span class="p">:</span> <span class="ss">:lists</span><span class="o">.</span><span class="n">reverse</span><span class="p">(</span><span class="n">acc</span><span class="p">)</span>
+<span class="k">defp</span> <span class="n">do_map</span><span class="p">([</span><span class="n">h</span><span class="o">|</span><span class="n">t</span><span class="p">],</span> <span class="n">f</span><span class="p">,</span> <span class="n">acc</span><span class="p">),</span> <span class="k">do</span><span class="p">:</span> <span class="n">do_map</span><span class="p">(</span><span class="n">t</span><span class="p">,</span> <span class="n">f</span><span class="p">,</span> <span class="p">[</span><span class="n">f</span><span class="o">.</span><span class="p">(</span><span class="n">h</span><span class="p">)</span><span class="o">|</span><span class="n">acc</span><span class="p">])</span>
+</code></pre></div></p>
+
+<p>I&rsquo;ve used <code>:lists.reverse</code> to avoid depending on <code>Enum</code> as the point of this
+example is how you could do things without <code>Enum</code>. It&rsquo;s also slightly faster (no
+overhead from calling a protocol function) and the fact that it&rsquo;s restricted to
+lists doesn&rsquo;t matter as we&rsquo;re working on lists anyway.</p>
+
+<p>Now here&rsquo;s how you would write <code>map/2</code> using <code>Enumerable</code>, so it works for every
+enumerable:</p>
+
+<p><div class="highlight"><pre><code class="elixir"><span class="k">def</span> <span class="n">map</span><span class="p">(</span><span class="n">e</span><span class="p">,</span> <span class="n">f</span><span class="p">)</span> <span class="k">do</span>
+<span class="k">  </span><span class="no">Enumerable</span><span class="o">.</span><span class="n">reduce</span><span class="p">(</span><span class="n">e</span><span class="p">,</span> <span class="p">[],</span> <span class="k">fn</span> <span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">acc</span><span class="p">)</span> <span class="err">&amp;</span><span class="n">ndash</span><span class="p">;</span><span class="o">&gt;</span> <span class="p">[</span><span class="n">f</span><span class="o">.</span><span class="p">(</span><span class="n">x</span><span class="p">)</span><span class="o">|</span><span class="n">acc</span><span class="p">]</span> <span class="k">end</span><span class="p">)</span> <span class="o">|&gt;</span> <span class="ss">:lists</span><span class="o">.</span><span class="n">reverse</span><span class="p">()</span>
+<span class="k">end</span>
+</code></pre></div></p>
+
+<p>While superficially different this is actually a lot like the accumulator
+version of map with a few differences. Firstly the recursive call to <code>do_map</code> is
+gone, instead just the new accumulator is returned. Secondly there&rsquo;s no more
+manual pattern matching to get the first element of the list. Instead the
+<code>Enumerable.reduce</code> function passes our function an element, one at a time.</p>
+
+<p>Read that last sentence again, it&rsquo;s key to understanding the power of reduce.
+The <code>reduce</code> function is responsible for calling the function we supply with
+each element. It is responsible for the how of iteration. Our function doesn&rsquo;t
+need to know anything about the data structure we&rsquo;re iterating over as long as
+there&rsquo;s a function that can call our function. Don&rsquo;t call us, we&rsquo;ll call you.</p>
+
+<p>Another important function in <code>Enum</code> is <code>filter/2</code>. Again the translation is
+quite obvious:</p>
+
+<p><div class="highlight"><pre><code class="elixir"><span class="k">def</span> <span class="n">filter</span><span class="p">(</span><span class="n">l</span><span class="p">,</span> <span class="n">f</span><span class="p">),</span> <span class="k">do</span><span class="p">:</span> <span class="n">do_filter</span><span class="p">(</span><span class="n">l</span><span class="p">,</span> <span class="n">f</span><span class="p">,</span> <span class="p">[])</span><span class="o">&lt;/</span><span class="n">p</span><span class="o">&gt;</span>
+
+<span class="o">&lt;</span><span class="n">p</span><span class="o">&gt;</span><span class="k">defp</span> <span class="n">do_filter</span><span class="p">([],</span> <span class="n">f</span><span class="p">,</span> <span class="n">acc</span><span class="p">),</span> <span class="k">do</span><span class="p">:</span> <span class="ss">:lists</span><span class="o">.</span><span class="n">reverse</span><span class="p">(</span><span class="n">acc</span><span class="p">)</span>
+<span class="k">defp</span> <span class="n">do_filter</span><span class="p">([</span><span class="n">h</span><span class="o">|</span><span class="n">t</span><span class="p">],</span> <span class="n">f</span><span class="p">,</span> <span class="n">acc</span><span class="p">)</span> <span class="k">do</span>
+<span class="k">  if</span> <span class="n">f</span><span class="o">.</span><span class="p">(</span><span class="n">h</span><span class="p">)</span> <span class="k">do</span><span class="o">&lt;/</span><span class="n">p</span><span class="o">&gt;</span>
+
+<span class="o">&lt;</span><span class="n">pre</span><span class="err">&gt;</span><span class="o">&lt;</span><span class="n">code</span><span class="o">&gt;</span><span class="n">do_filter</span><span class="p">(</span><span class="n">t</span><span class="p">,</span> <span class="n">f</span><span class="p">,</span> <span class="p">[</span><span class="n">h</span><span class="o">|</span><span class="n">acc</span><span class="p">])</span>
+<span class="o">&lt;/</span><span class="n">code</span><span class="err">&gt;</span><span class="o">&lt;/</span><span class="n">pre</span><span class="o">&gt;</span>
+
+<span class="o">&lt;</span><span class="n">p</span><span class="o">&gt;</span>  <span class="k">else</span><span class="o">&lt;/</span><span class="n">p</span><span class="o">&gt;</span>
+
+<span class="o">&lt;</span><span class="n">pre</span><span class="err">&gt;</span><span class="o">&lt;</span><span class="n">code</span><span class="o">&gt;</span><span class="n">do_filter</span><span class="p">(</span><span class="n">t</span><span class="p">,</span> <span class="n">f</span><span class="p">,</span> <span class="p">[</span><span class="n">acc</span><span class="p">])</span>
+<span class="o">&lt;/</span><span class="n">code</span><span class="err">&gt;</span><span class="o">&lt;/</span><span class="n">pre</span><span class="o">&gt;</span>
+
+<span class="o">&lt;</span><span class="n">p</span><span class="o">&gt;</span>  <span class="k">end</span>
+<span class="k">end</span>
+</code></pre></div></p>
+
+<p><div class="highlight"><pre><code class="elixir"><span class="k">def</span> <span class="n">filter</span><span class="p">(</span><span class="n">e</span><span class="p">,</span> <span class="n">f</span><span class="p">)</span> <span class="k">do</span>
+<span class="k">  </span><span class="no">Enumerable</span><span class="o">.</span><span class="n">reduce</span><span class="p">(</span><span class="n">e</span><span class="p">,</span> <span class="p">[],</span> <span class="k">fn</span> <span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">acc</span><span class="p">)</span> <span class="err">&amp;</span><span class="n">ndash</span><span class="p">;</span><span class="err">&gt;</span><span class="o">&lt;/</span><span class="n">p</span><span class="o">&gt;</span>
+
+<span class="o">&lt;</span><span class="n">pre</span><span class="err">&gt;</span><span class="o">&lt;</span><span class="n">code</span><span class="o">&gt;</span><span class="k">if</span> <span class="n">h</span><span class="o">.</span><span class="p">(</span><span class="n">x</span><span class="p">)</span> <span class="k">do</span>
+<span class="k">  </span><span class="p">[</span><span class="n">f</span><span class="o">.</span><span class="p">(</span><span class="n">x</span><span class="p">)</span><span class="o">|</span><span class="n">acc</span><span class="p">]</span>
+<span class="k">else</span>
+  <span class="n">acc</span>
+<span class="k">end</span>
+<span class="o">&lt;/</span><span class="n">code</span><span class="err">&gt;</span><span class="o">&lt;/</span><span class="n">pre</span><span class="o">&gt;</span>
+
+<span class="o">&lt;</span><span class="n">p</span><span class="o">&gt;</span>  <span class="k">end</span><span class="p">)</span> <span class="o">|&gt;</span> <span class="ss">:lists</span><span class="o">.</span><span class="n">reverse</span><span class="p">()</span>
+<span class="k">end</span>
+</code></pre></div></p>
+
+<p>Just the same transformation as for map.</p>
+
+<p>A function like <code>count/1</code> can be implemented as:</p>
+
+<p><div class="highlight"><pre><code class="elixir"><span class="k">def</span> <span class="n">count</span><span class="p">(</span><span class="n">e</span><span class="p">)</span> <span class="k">do</span>
+<span class="k">  </span><span class="no">Enumerable</span><span class="o">.</span><span class="n">reduce</span><span class="p">(</span><span class="n">e</span><span class="p">,</span> <span class="m">0</span><span class="p">,</span> <span class="k">fn</span> <span class="p">(</span><span class="n">_</span><span class="p">,</span> <span class="n">acc</span><span class="p">)</span> <span class="err">&amp;</span><span class="n">ndash</span><span class="p">;</span><span class="o">&gt;</span> <span class="n">acc</span> <span class="o">+</span> <span class="m">1</span> <span class="k">end</span><span class="p">)</span>
+<span class="k">end</span>
+</code></pre></div></p>
+
+<p>In reality it&rsquo;s a call to <code>Enumerable.count/1</code>, one of the two extra
+(non-reduce) functions on <code>Enumerable</code> (the other is <code>member?/2</code>) which are
+probably there to support data structures that have a faster way of computing
+them than using <code>reduce</code> (like sets). We&rsquo;ll talk a look at creating an
+<code>Enumerable</code> implementation for a custom data structure in the next section.</p>
+
+<p>As you have seen all the <code>Enum</code> functions can be easily and efficiently
+implemented using <code>reduce</code>. <code>reduce</code> is quite general. It&rsquo;s also not all that
+hard to implement, as we shall see.</p>
+
+<h2>Writing a reduce function <a name="reduce">&nbsp;</a></h2>
+
+<p>We&rsquo;ve seen how you can use <code>reduce/3</code> to do quite a lot of things. But how do
+you create a reduce function? Let&rsquo;s look at a few examples. First, a data
+structure (a binary tree).</p>
+
+<p><div class="highlight"><pre><code class="elixir"><span class="k">defmodule</span> <span class="no">BinTree</span> <span class="k">do</span>
+<span class="k">  defrecord</span> <span class="no">Tree</span><span class="p">,</span> <span class="ss">value:</span> <span class="no">nil</span><span class="p">,</span> <span class="ss">left:</span> <span class="no">nil</span><span class="p">,</span> <span class="ss">right:</span> <span class="no">nil</span><span class="o">&lt;/</span><span class="n">p</span><span class="o">&gt;</span>
+
+<span class="o">&lt;</span><span class="n">p</span><span class="o">&gt;</span>  <span class="k">def</span> <span class="n">reduce</span><span class="p">(</span><span class="no">nil</span><span class="p">,</span> <span class="n">acc</span><span class="p">,</span> <span class="n">_</span><span class="p">),</span> <span class="k">do</span><span class="p">:</span> <span class="n">acc</span>
+  <span class="k">def</span> <span class="n">reduce</span><span class="p">(</span><span class="no">BinTree</span><span class="p">[</span><span class="ss">value:</span> <span class="n">value</span><span class="p">,</span> <span class="ss">left:</span> <span class="n">left</span><span class="p">,</span> <span class="ss">right:</span> <span class="n">right</span><span class="p">],</span> <span class="n">acc</span><span class="p">,</span> <span class="n">fun</span><span class="p">)</span> <span class="k">do</span><span class="o">&lt;/</span><span class="n">p</span><span class="o">&gt;</span>
+
+<span class="o">&lt;</span><span class="n">pre</span><span class="err">&gt;</span><span class="o">&lt;</span><span class="n">code</span><span class="o">&gt;</span><span class="n">acc1</span> <span class="o">=</span> <span class="n">fun</span><span class="o">.</span><span class="p">(</span><span class="n">value</span><span class="p">,</span> <span class="n">acc</span><span class="p">)</span>
+<span class="n">acc2</span> <span class="o">=</span> <span class="n">reduce</span><span class="p">(</span><span class="n">left</span><span class="p">,</span> <span class="n">acc1</span><span class="p">,</span> <span class="n">fun</span><span class="p">)</span>
+<span class="n">reduce</span><span class="p">(</span><span class="n">right</span><span class="p">,</span> <span class="n">acc2</span><span class="p">,</span> <span class="n">fun</span><span class="p">)</span>
+<span class="o">&lt;/</span><span class="n">code</span><span class="err">&gt;</span><span class="o">&lt;/</span><span class="n">pre</span><span class="o">&gt;</span>
+
+<span class="o">&lt;</span><span class="n">p</span><span class="o">&gt;</span>  <span class="k">end</span>
+<span class="k">end</span>
+</code></pre></div></p>
+
+<p>To reduce a binary tree we&rsquo;ll first give the value to the passed reducer
+function and then call reduce on the left and right trees. Now that we have
+<code>reduce</code> it&rsquo;s easy to define an <code>Enumerable</code> implementation:</p>
+
+<p><div class="highlight"><pre><code class="elixir"><span class="k">defimpl</span> <span class="no">Enumerable</span><span class="p">,</span> <span class="ss">for:</span> <span class="no">BinTree</span><span class="o">.</span><span class="no">Tree</span> <span class="k">do</span>
+<span class="k">  def</span> <span class="n">reduce</span><span class="p">(</span><span class="no">BinTree</span><span class="o">.</span><span class="no">Tree</span><span class="p">[]</span> <span class="o">=</span> <span class="n">t</span><span class="p">,</span> <span class="n">acc</span><span class="p">,</span> <span class="n">fun</span><span class="p">),</span> <span class="k">do</span><span class="p">:</span> <span class="no">BinTree</span><span class="o">.</span><span class="n">reduce</span><span class="p">(</span><span class="n">t</span><span class="p">,</span> <span class="n">acc</span><span class="p">,</span> <span class="n">fun</span><span class="p">)</span>
+  <span class="k">def</span> <span class="n">count</span><span class="p">(</span><span class="no">BinTree</span><span class="o">.</span><span class="no">Tree</span><span class="p">[]</span> <span class="o">=</span> <span class="n">t</span><span class="p">)</span> <span class="k">do</span><span class="o">&lt;/</span><span class="n">p</span><span class="o">&gt;</span>
+
+<span class="o">&lt;</span><span class="n">pre</span><span class="err">&gt;</span><span class="o">&lt;</span><span class="n">code</span><span class="o">&gt;</span><span class="no">BinTree</span><span class="o">.</span><span class="n">reduce</span><span class="p">(</span><span class="n">t</span><span class="p">,</span> <span class="m">0</span><span class="p">,</span> <span class="k">fn</span> <span class="p">(</span><span class="n">_</span><span class="p">,</span> <span class="n">acc</span><span class="p">)</span> <span class="o">-</span><span class="err">&amp;</span><span class="n">gt</span><span class="p">;</span> <span class="n">acc</span> <span class="o">+</span> <span class="m">1</span> <span class="k">end</span><span class="p">)</span>
+<span class="o">&lt;/</span><span class="n">code</span><span class="err">&gt;</span><span class="o">&lt;/</span><span class="n">pre</span><span class="o">&gt;</span>
+
+<span class="o">&lt;</span><span class="n">p</span><span class="o">&gt;</span>  <span class="k">end</span>
+  <span class="k">def</span> <span class="n">member?</span><span class="p">(</span><span class="no">BinTree</span><span class="o">.</span><span class="no">Tree</span><span class="p">[]</span> <span class="o">=</span> <span class="n">t</span><span class="p">,</span> <span class="n">x</span><span class="p">)</span> <span class="k">do</span><span class="o">&lt;/</span><span class="n">p</span><span class="o">&gt;</span>
+
+<span class="o">&lt;</span><span class="n">pre</span><span class="err">&gt;</span><span class="o">&lt;</span><span class="n">code</span><span class="o">&gt;</span><span class="no">BinTree</span><span class="o">.</span><span class="n">reduce</span><span class="p">(</span><span class="n">t</span><span class="p">,</span> <span class="no">false</span><span class="p">,</span> <span class="k">fn</span> <span class="p">(</span><span class="n">v</span><span class="p">,</span> <span class="n">acc</span><span class="p">)</span> <span class="o">-</span><span class="err">&amp;</span><span class="n">gt</span><span class="p">;</span> <span class="n">acc</span> <span class="ow">or</span> <span class="n">x</span> <span class="o">==</span> <span class="n">v</span> <span class="k">end</span><span class="p">)</span>
+<span class="o">&lt;/</span><span class="n">code</span><span class="err">&gt;</span><span class="o">&lt;/</span><span class="n">pre</span><span class="o">&gt;</span>
+
+<span class="o">&lt;</span><span class="n">p</span><span class="o">&gt;</span>  <span class="k">end</span>
+<span class="k">end</span>
+</code></pre></div></p>
+
+<p>The <code>count/1</code> and <code>member?/2</code> functions are required as part of the <code>Enumerable</code>
+protocol, but you can always define them like I did. They&rsquo;re mostly useful for
+when you have a faster way to compute them. For example if the tree has a
+guarantee that left.value &lt; value &lt; right.value you could use that to avoid
+examining the whole tree.</p>
+
+<p>Let&rsquo;s test it:</p>
+
+<p><div class="highlight"><pre><code class="elixir"><span class="n">t</span> <span class="o">=</span> <span class="no">BinTree</span><span class="o">.</span><span class="no">Tree</span><span class="p">[</span><span class="ss">value:</span> <span class="m">1</span><span class="p">,</span><span class="o">&lt;/</span><span class="n">p</span><span class="o">&gt;</span>
+
+<span class="o">&lt;</span><span class="n">pre</span><span class="err">&gt;</span><span class="o">&lt;</span><span class="n">code</span><span class="o">&gt;</span>             <span class="ss">left:</span> <span class="no">BinTree</span><span class="o">.</span><span class="no">Tree</span><span class="p">[</span><span class="ss">value:</span> <span class="m">2</span><span class="p">],</span>
+             <span class="ss">right:</span> <span class="no">BinTree</span><span class="o">.</span><span class="no">Tree</span><span class="p">[</span><span class="ss">value:</span> <span class="m">3</span><span class="p">]]</span>
+<span class="o">&lt;/</span><span class="n">code</span><span class="err">&gt;</span><span class="o">&lt;/</span><span class="n">pre</span><span class="o">&gt;</span>
+
+<span class="o">&lt;</span><span class="n">p</span><span class="o">&gt;</span><span class="no">Enum</span><span class="o">.</span><span class="n">to_list</span><span class="p">(</span><span class="n">t</span><span class="p">)</span>    <span class="c1"># returns [1, 2, 3]</span>
+<span class="no">Enum</span><span class="o">.</span><span class="n">count</span><span class="p">(</span><span class="n">t</span><span class="p">)</span>      <span class="c1"># returns 3</span>
+<span class="no">Enum</span><span class="o">.</span><span class="n">member?</span><span class="p">(</span><span class="n">t</span><span class="p">,</span> <span class="m">1</span><span class="p">)</span> <span class="c1"># returns true</span>
+<span class="no">Enum</span><span class="o">.</span><span class="n">member?</span><span class="p">(</span><span class="n">t</span><span class="p">,</span> <span class="m">4</span><span class="p">)</span> <span class="c1"># returns false</span>
+</code></pre></div></p>
+
+<p>Ok, time for a more complicated scenario, which I&rsquo;ll also revisit in the
+section about streams to demonstrate how enumerable can be used to create very
+effective pipelines. Let&rsquo;s say you have a very big file and want to read it in
+blocks of 512 bytes. There&rsquo;s stuff for this in the standard library
+(<code>File.stream!/2</code>, <code>IO.binstream/2</code> and more). But for the sake of learning
+let&rsquo;s pretend all that isn&rsquo;t there.</p>
+
+<p><div class="highlight"><pre><code class="elixir"><span class="k">defmodule</span> <span class="no">BlockReader</span> <span class="k">do</span>
+<span class="k">  defexception</span> <span class="no">ReadError</span><span class="p">,</span> <span class="ss">message:</span> <span class="no">nil</span><span class="o">&lt;/</span><span class="n">p</span><span class="o">&gt;</span>
+
+<span class="o">&lt;</span><span class="n">p</span><span class="o">&gt;</span>  <span class="k">def</span> <span class="n">read!</span><span class="p">(</span><span class="n">device</span><span class="p">,</span> <span class="n">block_size</span> <span class="o">//</span> <span class="m">512</span><span class="p">)</span> <span class="k">do</span><span class="o">&lt;/</span><span class="n">p</span><span class="o">&gt;</span>
+
+<span class="o">&lt;</span><span class="n">pre</span><span class="err">&gt;</span><span class="o">&lt;</span><span class="n">code</span><span class="o">&gt;</span><span class="k">fn</span> <span class="n">acc</span><span class="p">,</span> <span class="n">fun</span> <span class="o">-</span><span class="err">&amp;</span><span class="n">gt</span><span class="p">;</span> <span class="n">do_read!</span><span class="p">(</span><span class="n">device</span><span class="p">,</span> <span class="n">block_size</span><span class="p">,</span> <span class="n">acc</span><span class="p">,</span> <span class="n">fun</span><span class="p">)</span> <span class="k">end</span>
+<span class="o">&lt;/</span><span class="n">code</span><span class="err">&gt;</span><span class="o">&lt;/</span><span class="n">pre</span><span class="o">&gt;</span>
+
+<span class="o">&lt;</span><span class="n">p</span><span class="o">&gt;</span>  <span class="k">end</span><span class="o">&lt;/</span><span class="n">p</span><span class="o">&gt;</span>
+
+<span class="o">&lt;</span><span class="n">p</span><span class="o">&gt;</span>  <span class="k">defp</span> <span class="n">do_read!</span><span class="p">(</span><span class="n">device</span><span class="p">,</span> <span class="n">block_size</span><span class="p">,</span> <span class="n">acc</span><span class="p">,</span> <span class="n">fun</span><span class="p">)</span> <span class="k">do</span><span class="o">&lt;/</span><span class="n">p</span><span class="o">&gt;</span>
+
+<span class="o">&lt;</span><span class="n">pre</span><span class="err">&gt;</span><span class="o">&lt;</span><span class="n">code</span><span class="o">&gt;</span><span class="k">case</span> <span class="no">IO</span><span class="o">.</span><span class="n">read</span><span class="p">(</span><span class="n">device</span><span class="p">,</span> <span class="n">block_size</span><span class="p">)</span> <span class="k">do</span>
+<span class="k">  </span><span class="ss">:eof</span>                      <span class="o">-</span><span class="err">&amp;</span><span class="n">gt</span><span class="p">;</span> <span class="n">acc</span>
+  <span class="p">{</span><span class="ss">:error</span><span class="p">,</span> <span class="n">reason</span><span class="p">}</span>          <span class="o">-</span><span class="err">&amp;</span><span class="n">gt</span><span class="p">;</span> <span class="k">raise</span> <span class="no">ReadError</span><span class="p">,</span> <span class="ss">message:</span> <span class="n">reason</span>
+  <span class="n">data</span> <span class="ow">when</span> <span class="n">is_binary</span><span class="p">(</span><span class="n">data</span><span class="p">)</span> <span class="o">-</span><span class="err">&amp;</span><span class="n">gt</span><span class="p">;</span> <span class="n">do_read!</span><span class="p">(</span><span class="n">device</span><span class="p">,</span> <span class="n">block_size</span><span class="p">,</span> <span class="n">fun</span><span class="o">.</span><span class="p">(</span><span class="n">data</span><span class="p">,</span> <span class="n">acc</span><span class="p">),</span> <span class="n">fun</span><span class="p">)</span>
+<span class="k">end</span>
+<span class="o">&lt;/</span><span class="n">code</span><span class="err">&gt;</span><span class="o">&lt;/</span><span class="n">pre</span><span class="o">&gt;</span>
+
+<span class="o">&lt;</span><span class="n">p</span><span class="o">&gt;</span>  <span class="k">end</span>
+<span class="k">end</span>
+</code></pre></div></p>
+
+<p>Given an open file (i.e. an IO device) this will cut up a file in blocks.  It
+can be used like this:</p>
+
+<p><div class="highlight"><pre><code class="elixir"><span class="no">File</span><span class="o">.</span><span class="n">open!</span><span class="p">(</span><span class="err">&amp;</span><span class="n">ldquo</span><span class="p">;</span><span class="o">/</span><span class="n">tmp</span><span class="o">/</span><span class="n">some_file</span><span class="err">&amp;</span><span class="n">rdquo</span><span class="p">;)</span> <span class="o">|&gt;</span> <span class="no">BlockReader</span><span class="o">.</span><span class="n">read</span><span class="p">()</span> <span class="o">|&gt;</span> <span class="no">Enum</span><span class="o">.</span><span class="n">to_list</span><span class="p">()</span>
+</code></pre></div></p>
+
+<p>Quick question to see whether you&rsquo;ve been paying attention, did you notice that
+<code>BlockReader.read!</code> works a bit differently than <code>BinTree.reduce</code>?</p>
+
+<p>While <code>BinTree.reduce</code> calls the supplied function directly <code>BlockReader.read!</code>
+returns a function that takes an accumulator and a reducer function. So how does
+this work? Well <code>Enumerable</code> is implemented for functions. Any function that
+takes two arguments, initial accumulator and function is a valid <code>Enumerable</code>.
+The <code>reduce</code> implementation for functions very simple:</p>
+
+<p><div class="highlight"><pre><code class="elixir"><span class="k">def</span> <span class="n">reduce</span><span class="p">(</span><span class="n">function</span><span class="p">,</span> <span class="n">acc</span><span class="p">,</span> <span class="n">f</span><span class="p">),</span> <span class="k">do</span><span class="p">:</span> <span class="n">function</span><span class="o">.</span><span class="p">(</span><span class="n">acc</span><span class="p">,</span> <span class="n">f</span><span class="p">)</span>
+</code></pre></div></p>
+
+<p>In other words when a function gets passed to <code>Enum.reduce</code> all that happens is
+that the function gets called with the other two arguments of <code>Enum.reduce</code>
+(namely the accumulator and reducer function).</p>
+
+<p>Besides manually writing reduce functions there are also a few functions in
+<code>Stream</code> that generate them such as <code>Stream.iterate/2</code> and
+<code>Stream.repeatedly/1</code>.</p>
+
+<p>In the next section we&rsquo;ll see how streams allow us to put something between a
+reduction function and the reducer.</p>
+
+<h2>Streaming transformations <a name="stream">&nbsp;</a></h2>
+
+<p>It&rsquo;s easy enough to write some code that computes the line count and character
+count (grapheme count to be precise) of each line of a file:</p>
+
+<p><div class="highlight"><pre><code class="elixir"><span class="no">File</span><span class="o">.</span><span class="n">stream!</span><span class="p">(</span><span class="err">&amp;</span><span class="n">ldquo</span><span class="p">;</span><span class="n">my_file</span><span class="err">&amp;</span><span class="n">rdquo</span><span class="p">;)</span> <span class="o">|&gt;</span> <span class="no">Enum</span><span class="o">.</span><span class="n">reduce</span><span class="p">({</span><span class="m">0</span><span class="p">,</span> <span class="m">0</span><span class="p">},</span> <span class="k">fn</span> <span class="p">(</span><span class="n">line</span><span class="p">,</span> <span class="p">{</span><span class="n">lines</span><span class="p">,</span> <span class="n">chars</span><span class="p">})</span> <span class="err">&amp;</span><span class="n">ndash</span><span class="p">;</span><span class="o">&gt;</span>
+  <span class="p">{</span><span class="n">lines</span><span class="o">+</span><span class="m">1</span><span class="p">,</span> <span class="n">chars</span> <span class="o">+</span> <span class="no">String</span><span class="o">.</span><span class="n">length</span><span class="p">(</span><span class="n">line</span><span class="p">)}</span>
+<span class="k">end</span><span class="p">)</span>
+</code></pre></div></p>
+
+<p>But what if we want something a little more complicated, like, say, ignoring
+lines that start with &lsquo;#&rsquo;? We could of course complicate the reducer function
+but there&rsquo;s an alterative.</p>
+
+<p>Streams allow us to stick something (like a map or a filter) in the middle of a
+reduction pipeline.</p>
+
+<p><div class="highlight"><pre><code class="elixir"><span class="no">File</span><span class="o">.</span><span class="n">stream!</span><span class="p">(</span><span class="err">&amp;</span><span class="n">ldquo</span><span class="p">;</span><span class="n">my_file</span><span class="err">&amp;</span><span class="n">rdquo</span><span class="p">;)</span>
+  <span class="o">|&gt;</span> <span class="no">Stream</span><span class="o">.</span><span class="n">reject</span><span class="p">(</span><span class="err">&amp;</span><span class="n">amp</span><span class="p">;(</span><span class="no">String</span><span class="o">.</span><span class="n">startswith</span><span class="p">(</span><span class="err">&amp;</span><span class="n">amp</span><span class="p">;</span><span class="m">1</span><span class="p">,</span> <span class="err">&amp;</span><span class="n">ldquo</span><span class="p">;</span><span class="c1">#&amp;rdquo;)))</span>
+  <span class="o">|&gt;</span> <span class="no">Enum</span><span class="o">.</span><span class="n">reduce</span><span class="p">({</span><span class="m">0</span><span class="p">,</span> <span class="m">0</span><span class="p">},</span> <span class="k">fn</span> <span class="p">(</span><span class="n">line</span><span class="p">,</span> <span class="p">{</span><span class="n">lines</span><span class="p">,</span> <span class="n">chars</span><span class="p">})</span> <span class="err">&amp;</span><span class="n">ndash</span><span class="p">;</span><span class="err">&gt;</span><span class="o">&lt;/</span><span class="n">p</span><span class="o">&gt;</span>
+
+<span class="o">&lt;</span><span class="n">pre</span><span class="err">&gt;</span><span class="o">&lt;</span><span class="n">code</span><span class="o">&gt;</span>   <span class="p">{</span><span class="n">lines</span><span class="o">+</span><span class="m">1</span><span class="p">,</span> <span class="n">chars</span> <span class="o">+</span> <span class="no">String</span><span class="o">.</span><span class="n">length</span><span class="p">(</span><span class="n">line</span><span class="p">)}</span>
+ <span class="k">end</span><span class="p">)</span>
+<span class="o">&lt;/</span><span class="n">code</span><span class="err">&gt;</span><span class="o">&lt;/</span><span class="n">pre</span><span class="o">&gt;</span>
+
+<span class="o">&lt;</span><span class="n">p</span><span class="o">&gt;</span>
+</code></pre></div></p>
+
+<p>Here <code>Stream.reject/2</code> (reject is filter with the condition inverted) very
+efficiently filters out the lines we don&rsquo;t want, without constructing a big
+intermediate list of course.</p>
+
+<p>Streams are easy to use, you just stick them between a generator (like
+<code>File.stream!</code>) and some call to an <code>Enum</code> function.</p>
+
+<p>Most, if not all, of the time the functions in <code>Stream</code> are all you need to work
+with streams. But it&rsquo;s good to know how they work under the hood. Well, it&rsquo;s a
+little bit complicated I&rsquo;m afraid.</p>
+
+<p>Let&rsquo;s start by looking at the <code>Stream.Lazy</code> record:</p>
+
+<p><div class="highlight"><pre><code class="elixir"><span class="k">defrecord</span> <span class="no">Stream</span><span class="o">.</span><span class="no">Lazy</span><span class="p">,</span> <span class="ss">enumerable:</span> <span class="no">nil</span><span class="p">,</span> <span class="ss">fun:</span> <span class="no">nil</span><span class="p">,</span> <span class="ss">acc:</span> <span class="no">nil</span>
+</code></pre></div></p>
+
+<p>Three fields: <code>enumerable</code>, <code>fun</code> and <code>acc</code>. The <code>enumerable</code> field is due to a
+pipeline <code>File.stream!("a") |&gt; Stream.map(&amp;some_fun/1) |&gt; Enum.each(&amp;IO.puts/1)</code>
+being translated (by the <code>|&gt;</code> macro) to <code>Enum.each(Stream.map(File.stream!("a"),
+&amp;some_fun/1), &amp;IO.puts/1)</code>, meaning that <code>Stream.map</code> wraps the result of
+<code>File.stream!</code> (which is a reducer calling function, which is an enumerable,
+like in our implementation). The <code>enumerable</code> field stores the enumerable passed
+to <code>Stream.map</code>.</p>
+
+<p>The <code>acc</code> field stores the accumulator for your stream. It can be <code>nil</code>, if you
+don&rsquo;t have an accumulator. The <code>fun</code> field stores your stream function.</p>
+
+<p>The stream function should always accept a reducer function (I&rsquo;ll call
+this the &ldquo;inner&rdquo; reducer). If you&rsquo;re using an accumulator (the <code>acc</code> field is
+specified and not <code>nil</code>) it should also accept and something commonly called
+<code>nesting</code> that you only need if you want to stop streaming before the input is
+done (more on that later). So a non-accumulator-using stream function should
+accept an inner reducer and an accumulator-using stream function should accept
+an inner reducer and <code>_nesting</code>.  If you consider this to be confusing, I fully
+agree.</p>
+
+<p>The stream function should return another function. If you&rsquo;re using an
+accumulator the function should accept an entry (from the &ldquo;outer&rdquo;
+generator/stream, so the input you&rsquo;re working on) and an accumulator for the
+inner reducer function and return a new accumulator for it. For example here&rsquo;s
+how you could implement a stream that adds 1 to each input before passing it
+along.</p>
+
+<p><div class="highlight"><pre><code class="elixir"><span class="k">def</span> <span class="n">add_one</span><span class="p">(</span><span class="n">e</span><span class="p">)</span> <span class="k">do</span>
+<span class="k">  </span><span class="no">Stream</span><span class="o">.</span><span class="no">Lazy</span><span class="p">[</span><span class="ss">enumerable:</span> <span class="n">e</span><span class="p">,</span><span class="o">&lt;/</span><span class="n">p</span><span class="o">&gt;</span>
+
+<span class="o">&lt;</span><span class="n">pre</span><span class="err">&gt;</span><span class="o">&lt;</span><span class="n">code</span><span class="o">&gt;</span>          <span class="c1"># acc is nil by default</span>
+          <span class="ss">fun:</span> <span class="k">fn</span><span class="p">(</span><span class="n">inner_fun</span><span class="p">)</span> <span class="o">-</span><span class="err">&amp;</span><span class="n">gt</span><span class="p">;</span>
+            <span class="k">fn</span><span class="p">(</span><span class="n">entry</span><span class="p">,</span> <span class="n">inner_acc</span><span class="p">)</span> <span class="o">-</span><span class="err">&amp;</span><span class="n">gt</span><span class="p">;</span> <span class="n">inner_fun</span><span class="o">.</span><span class="p">(</span><span class="n">entry</span> <span class="o">+</span> <span class="m">1</span><span class="p">,</span> <span class="n">inner_acc</span><span class="p">)</span> <span class="k">end</span>
+          <span class="k">end</span><span class="p">]</span>
+<span class="o">&lt;/</span><span class="n">code</span><span class="err">&gt;</span><span class="o">&lt;/</span><span class="n">pre</span><span class="o">&gt;</span>
+
+<span class="o">&lt;</span><span class="n">p</span><span class="o">&gt;</span><span class="k">end</span>
+</code></pre></div></p>
+
+<p>If the accumulator is not <code>nil</code> you get a tuple <code>{ inner_acc, my_acc }</code> instead
+of just <code>inner_acc</code> and should return a similar tuple. Take for example a
+function that adds successive numbers to each value.</p>
+
+<p><div class="highlight"><pre><code class="elixir"><span class="k">def</span> <span class="n">add_increasing</span><span class="p">(</span><span class="n">e</span><span class="p">)</span> <span class="k">do</span>
+<span class="k">  </span><span class="no">Stream</span><span class="o">.</span><span class="no">Lazy</span><span class="p">[</span><span class="ss">enumerable:</span> <span class="n">e</span><span class="p">,</span><span class="o">&lt;/</span><span class="n">p</span><span class="o">&gt;</span>
+
+<span class="o">&lt;</span><span class="n">pre</span><span class="err">&gt;</span><span class="o">&lt;</span><span class="n">code</span><span class="o">&gt;</span>          <span class="ss">acc:</span> <span class="m">1</span><span class="p">,</span>
+          <span class="ss">fun:</span> <span class="k">fn</span><span class="p">(</span><span class="n">inner_fun</span><span class="p">,</span> <span class="n">_nesting</span><span class="p">)</span> <span class="o">-</span><span class="err">&amp;</span><span class="n">gt</span><span class="p">;</span>
+            <span class="k">fn</span><span class="p">(</span><span class="n">entry</span><span class="p">,</span> <span class="p">{</span> <span class="n">inner_acc</span><span class="p">,</span> <span class="n">my_acc</span> <span class="p">})</span> <span class="o">-</span><span class="err">&amp;</span><span class="n">gt</span><span class="p">;</span> 
+              <span class="p">{</span> <span class="n">inner_fun</span><span class="o">.</span><span class="p">(</span><span class="n">entry</span> <span class="o">+</span> <span class="n">my_acc</span><span class="p">,</span> <span class="n">inner_acc</span><span class="p">),</span> <span class="n">my_acc</span> <span class="o">+</span> <span class="m">1</span> <span class="p">}</span>
+            <span class="k">end</span>
+          <span class="k">end</span><span class="p">]</span>
+<span class="o">&lt;/</span><span class="n">code</span><span class="err">&gt;</span><span class="o">&lt;/</span><span class="n">pre</span><span class="o">&gt;</span>
+
+<span class="o">&lt;</span><span class="n">p</span><span class="o">&gt;</span><span class="k">end</span>
+</code></pre></div></p>
+
+<p>That&rsquo;s most of the magic of stream functions. One tiny detail remains. Remember
+that weird <code>nesting</code> argument? It&rsquo;s used when you want to early abort a stream
+(before the input is done). This is used in <code>Stream.take</code> and it depends on
+throwing a tuple. Please don&rsquo;t write code that uses this, consider the internal
+throw an implementation detail that&rsquo;s not supposed to leak. I&rsquo;m only showing it
+to explain how <code>Stream</code> works internally.</p>
+
+<p><div class="highlight"><pre><code class="elixir"><span class="k">def</span> <span class="n">until_second_boom</span><span class="p">(</span><span class="n">e</span><span class="p">)</span> <span class="k">do</span>
+<span class="k">  </span><span class="no">Stream</span><span class="o">.</span><span class="no">Lazy</span><span class="p">[</span><span class="ss">enumerable:</span> <span class="n">e</span><span class="p">,</span><span class="o">&lt;/</span><span class="n">p</span><span class="o">&gt;</span>
+
+<span class="o">&lt;</span><span class="n">pre</span><span class="err">&gt;</span><span class="o">&lt;</span><span class="n">code</span><span class="o">&gt;</span>          <span class="ss">acc:</span> <span class="m">1</span><span class="p">,</span>
+          <span class="ss">fun:</span> <span class="k">fn</span><span class="p">(</span><span class="n">inner_fun</span><span class="p">,</span> <span class="n">nesting</span><span class="p">)</span> <span class="o">-</span><span class="err">&amp;</span><span class="n">gt</span><span class="p">;</span>
+            <span class="k">fn</span>
+              <span class="p">(</span><span class="n">entry</span><span class="p">,</span> <span class="p">{</span> <span class="n">inner_acc</span><span class="p">,</span> <span class="m">0</span> <span class="p">})</span> <span class="ow">when</span> <span class="n">entry</span> <span class="o">==</span> <span class="s2">&quot;boom&quot;</span> <span class="o">-</span><span class="err">&amp;</span><span class="n">gt</span><span class="p">;</span>
+                <span class="k">throw</span> <span class="p">{</span> <span class="ss">:stream_lazy</span><span class="p">,</span> <span class="n">nesting</span><span class="p">,</span> <span class="n">inner_acc</span> <span class="p">}</span>
+              <span class="p">(</span><span class="n">entry</span><span class="p">,</span> <span class="p">{</span> <span class="n">inner_acc</span><span class="p">,</span> <span class="n">my_acc</span> <span class="p">})</span> <span class="o">-</span><span class="err">&amp;</span><span class="n">gt</span><span class="p">;</span>
+                <span class="p">{</span> <span class="n">inner_fun</span><span class="o">.</span><span class="p">(</span><span class="n">entry</span><span class="p">,</span> <span class="n">inner_acc</span><span class="p">),</span>
+                  <span class="p">(</span><span class="k">if</span> <span class="n">entry</span> <span class="o">==</span> <span class="s2">&quot;boom&quot;</span><span class="p">,</span> <span class="k">do</span><span class="p">:</span> <span class="n">my_acc</span> <span class="o">-</span> <span class="m">1</span><span class="p">,</span> <span class="k">else</span><span class="p">:</span> <span class="n">my_acc</span><span class="p">)</span> <span class="p">}</span>
+            <span class="k">end</span>
+          <span class="k">end</span><span class="p">]</span>
+<span class="o">&lt;/</span><span class="n">code</span><span class="err">&gt;</span><span class="o">&lt;/</span><span class="n">pre</span><span class="o">&gt;</span>
+
+<span class="o">&lt;</span><span class="n">p</span><span class="o">&gt;</span><span class="k">end</span>
+</code></pre></div></p>
+
+<p>When you run this code with <code>MyMod.until_second_boom([1,2,"boom",3,"boom"]) |&gt;
+Enum.to_list</code> the result is <code>[1,2,"boom",3]</code>.</p>
+
+<p>That&rsquo;s it for <code>Stream</code>. Please note however that you&rsquo;re not supposed to write
+your own streams. If you need something that&rsquo;s missing from <code>Stream</code> please
+write a patch for it. That way you won&rsquo;t run the risk of something breaking if
+the implementation of <code>Stream</code> is updated.</p>
+
+<h2>Wrapping it up</h2>
+
+<p>We&rsquo;ve seen how <code>Enumerable</code> lets you work with all kinds of data structures and
+custom stream sources (<code>File.stream!</code>) through a consistent interface. With
+<code>Enum</code> and <code>Stream</code> pipelines of transformations can be both expressive and
+efficient.  Yet at the same time there&rsquo;s great flexibility, you can define your
+own stream sources and your own stream &ldquo;consumers&rdquo;. You can even (but are not
+advised to) define your own stream functions.</p>
+
+<p></p>
+]]></content>
+  </entry>
+  
+</feed>
