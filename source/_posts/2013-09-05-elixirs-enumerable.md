@@ -213,7 +213,7 @@ defmodule BinTree do
   defrecord Tree, value: nil, left: nil, right: nil
 
   def reduce(nil, acc, _), do: acc
-  def reduce(BinTree[value: value, left: left, right: right], acc, fun) do
+  def reduce(Tree[value: value, left: left, right: right], acc, fun) do
     acc1 = fun.(value, acc)
     acc2 = reduce(left, acc1, fun)
     reduce(right, acc2, fun)
