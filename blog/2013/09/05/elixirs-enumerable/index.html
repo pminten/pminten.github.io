@@ -301,7 +301,7 @@ structure (a binary tree).</p>
 <span class="k">  defrecord</span> <span class="no">Tree</span><span class="p">,</span> <span class="ss">value:</span> <span class="no">nil</span><span class="p">,</span> <span class="ss">left:</span> <span class="no">nil</span><span class="p">,</span> <span class="ss">right:</span> <span class="no">nil</span>
 
   <span class="k">def</span> <span class="n">reduce</span><span class="p">(</span><span class="no">nil</span><span class="p">,</span> <span class="n">acc</span><span class="p">,</span> <span class="n">_</span><span class="p">),</span> <span class="k">do</span><span class="p">:</span> <span class="n">acc</span>
-  <span class="k">def</span> <span class="n">reduce</span><span class="p">(</span><span class="no">BinTree</span><span class="p">[</span><span class="ss">value:</span> <span class="n">value</span><span class="p">,</span> <span class="ss">left:</span> <span class="n">left</span><span class="p">,</span> <span class="ss">right:</span> <span class="n">right</span><span class="p">],</span> <span class="n">acc</span><span class="p">,</span> <span class="n">fun</span><span class="p">)</span> <span class="k">do</span>
+  <span class="k">def</span> <span class="n">reduce</span><span class="p">(</span><span class="no">Tree</span><span class="p">[</span><span class="ss">value:</span> <span class="n">value</span><span class="p">,</span> <span class="ss">left:</span> <span class="n">left</span><span class="p">,</span> <span class="ss">right:</span> <span class="n">right</span><span class="p">],</span> <span class="n">acc</span><span class="p">,</span> <span class="n">fun</span><span class="p">)</span> <span class="k">do</span>
 <span class="k">    </span><span class="n">acc1</span> <span class="o">=</span> <span class="n">fun</span><span class="o">.</span><span class="p">(</span><span class="n">value</span><span class="p">,</span> <span class="n">acc</span><span class="p">)</span>
     <span class="n">acc2</span> <span class="o">=</span> <span class="n">reduce</span><span class="p">(</span><span class="n">left</span><span class="p">,</span> <span class="n">acc1</span><span class="p">,</span> <span class="n">fun</span><span class="p">)</span>
     <span class="n">reduce</span><span class="p">(</span><span class="n">right</span><span class="p">,</span> <span class="n">acc2</span><span class="p">,</span> <span class="n">fun</span><span class="p">)</span>
@@ -581,6 +581,8 @@ advised to) define your own stream functions.</p>
     <p class="meta">
       
       
+        <a class="basic-alignment right" href="/blog/2013/09/11/elixir-patterns-mixins/" title="Next Post: Elixir Patterns: Mixins">Elixir Patterns: Mixins &raquo;</a>
+      
     </p>
   </footer>
 </article>
@@ -592,6 +594,10 @@ advised to) define your own stream functions.</p>
     <section>
   <h1>Recent Posts</h1>
   <ul id="recent_posts">
+    
+      <li class="post">
+        <a href="/blog/2013/09/11/elixir-patterns-mixins/">Elixir Patterns: Mixins</a>
+      </li>
     
       <li class="post">
         <a href="/blog/2013/09/05/elixirs-enumerable/">Elixir's Enumerable</a>

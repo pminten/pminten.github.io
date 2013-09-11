@@ -9,8 +9,8 @@
   <meta name="author" content="Peter Minten">
 
   
-  <meta name="description" content="Sometimes Elixir can be quite a pain. Often it&rsquo;s because the libraries don&rsquo;t yet
-have what you need or because a feature that looks like &hellip;">
+  <meta name="description" content="Elixir&rsquo;s macros are a powerful way to add language features without encoding
+them in the language core itself. One of such features is a &hellip;">
   
 
   <!-- http://t.co/dKP3o1e -->
@@ -66,6 +66,237 @@ have what you need or because a feature that looks like &hellip;">
     <div id="content">
       <div class="blog-index">
   
+  
+  
+    <article>
+      
+  <header>
+    
+      <h1 class="entry-title"><a href="/blog/2013/09/11/elixir-patterns-mixins/">Elixir Patterns: Mixins</a></h1>
+    
+    
+      <p class="meta">
+        
+
+
+
+
+
+
+
+
+  
+
+
+<time datetime="2013-09-11T13:48:00+02:00" pubdate data-updated="true">Sep 11<span>th</span>, 2013</time>
+        
+      </p>
+    
+  </header>
+
+
+  <div class="entry-content"><p>Elixir&rsquo;s macros are a powerful way to add language features without encoding
+them in the language core itself. One of such features is a pattern one could
+call &ldquo;mixin&rdquo; (by analogy to the
+<a href="https://en.wikipedia.org/wiki/Mixin">Mixin concept</a> in class based
+object-oriented languages.</p>
+
+<p>In Ruby mixin modules are used for example to define the <code>==</code>, <code>&lt;</code>, <code>&gt;=</code>, etc
+operators for a class if the <code>&lt;=&gt;</code> (compare) operator is defined. The compare
+operator returns -1 if the first argument is smaller than the second, 0
+if it is equal to the second and 1 if it is greater than the second. Obviously
+if you have that it&rsquo;s easy to define <code>&lt;</code> and friends. By including the
+<code>Comparable</code> mixin you get most of the comparison operators for free, just
+remember to define <code>&lt;=&gt;</code>.</p>
+
+<h2>Default functions for protocols</h2>
+
+<p>In Elixir we don&rsquo;t have classes but we do have similar situations where you
+generally want to define something in terms of something else. Take for example
+<code>Enumerable</code>. The <code>Enumerable</code> protocol has three methods: <code>reduce/3</code>, <code>count/1</code>
+and <code>member?/2</code>. However you can always define <code>count</code> and <code>member?</code> in
+terms of <code>reduce</code>, they&rsquo;re just there so that you can override them with a more
+efficient implementation.</p>
+
+<p>Because protocols don&rsquo;t support default definitions for a method you always have
+to define all three, even if you don&rsquo;t do anything special for <code>count</code> and
+<code>member?</code>. That is to say for a simple binary tree you have to write:</p>
+
+<div class="highlight"><pre><code class="elixir"><span class="k">defrecord</span> <span class="no">BinTree</span><span class="p">,</span> <span class="ss">value:</span> <span class="no">nil</span><span class="p">,</span> <span class="ss">left:</span> <span class="no">nil</span><span class="p">,</span> <span class="ss">right:</span> <span class="no">nil</span>
+
+<span class="k">defimpl</span> <span class="no">Enumerable</span><span class="p">,</span> <span class="ss">for:</span> <span class="no">BinTree</span> <span class="k">do</span>
+<span class="k">  def</span> <span class="n">reduce</span><span class="p">(</span><span class="no">nil</span><span class="p">,</span> <span class="n">acc</span><span class="p">,</span> <span class="n">_</span><span class="p">),</span> <span class="k">do</span><span class="p">:</span> <span class="n">acc</span>
+  <span class="k">def</span> <span class="n">reduce</span><span class="p">(</span><span class="no">BinTree</span><span class="p">[</span><span class="ss">value:</span> <span class="n">value</span><span class="p">,</span> <span class="ss">left:</span> <span class="n">left</span><span class="p">,</span> <span class="ss">right:</span> <span class="n">right</span><span class="p">],</span> <span class="n">acc</span><span class="p">,</span> <span class="n">fun</span><span class="p">)</span> <span class="k">do</span>
+<span class="k">    </span><span class="n">acc1</span> <span class="o">=</span> <span class="n">fun</span><span class="o">.</span><span class="p">(</span><span class="n">value</span><span class="p">,</span> <span class="n">acc</span><span class="p">)</span>
+    <span class="n">acc2</span> <span class="o">=</span> <span class="n">reduce</span><span class="p">(</span><span class="n">left</span><span class="p">,</span> <span class="n">acc1</span><span class="p">,</span> <span class="n">fun</span><span class="p">)</span>
+    <span class="n">reduce</span><span class="p">(</span><span class="n">right</span><span class="p">,</span> <span class="n">acc2</span><span class="p">,</span> <span class="n">fun</span><span class="p">)</span>
+  <span class="k">end</span>
+
+  <span class="k">def</span> <span class="n">count</span><span class="p">(</span><span class="no">BinTree</span><span class="p">[]</span> <span class="o">=</span> <span class="n">t</span><span class="p">)</span> <span class="k">do</span>
+<span class="k">    </span><span class="n">reduce</span><span class="p">(</span><span class="n">t</span><span class="p">,</span> <span class="m">0</span><span class="p">,</span> <span class="k">fn</span> <span class="p">(</span><span class="n">_</span><span class="p">,</span> <span class="n">acc</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">acc</span> <span class="o">+</span> <span class="m">1</span> <span class="k">end</span><span class="p">)</span>
+  <span class="k">end</span>
+  <span class="k">def</span> <span class="n">member?</span><span class="p">(</span><span class="no">BinTree</span><span class="p">[]</span> <span class="o">=</span> <span class="n">t</span><span class="p">,</span> <span class="n">x</span><span class="p">)</span> <span class="k">do</span>
+<span class="k">    </span><span class="n">reduce</span><span class="p">(</span><span class="n">t</span><span class="p">,</span> <span class="no">false</span><span class="p">,</span> <span class="k">fn</span> <span class="p">(</span><span class="n">v</span><span class="p">,</span> <span class="n">acc</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">acc</span> <span class="ow">or</span> <span class="n">x</span> <span class="o">==</span> <span class="n">v</span> <span class="k">end</span><span class="p">)</span>
+  <span class="k">end</span>
+<span class="k">end</span>
+</code></pre></div>
+
+
+<p>Using a mixin we can simplify this. A mixin in Elixir is generally defined as a
+module with a <code>__using__</code> macro.</p>
+
+<div class="highlight"><pre><code class="elixir"><span class="k">defmodule</span> <span class="no">Enumerable</span><span class="o">.</span><span class="no">Mixin</span> <span class="k">do</span>
+<span class="k">  defmacro</span> <span class="n">__using__</span><span class="p">(</span><span class="n">_</span><span class="p">)</span> <span class="k">do</span>
+<span class="k">    </span><span class="kn">quote</span> <span class="ss">location:</span> <span class="n">keep</span> <span class="k">do</span>
+<span class="k">      def</span> <span class="n">count</span><span class="p">(</span><span class="n">e</span><span class="p">)</span> <span class="k">do</span>
+<span class="k">        </span><span class="n">reduce</span><span class="p">(</span><span class="n">e</span><span class="p">,</span> <span class="m">0</span><span class="p">,</span> <span class="k">fn</span> <span class="p">(</span><span class="n">_</span><span class="p">,</span> <span class="n">acc</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">acc</span> <span class="o">+</span> <span class="m">1</span> <span class="k">end</span><span class="p">)</span>
+      <span class="k">end</span>
+      <span class="k">def</span> <span class="n">member?</span><span class="p">(</span><span class="n">e</span><span class="p">,</span> <span class="n">x</span><span class="p">)</span> <span class="k">do</span>
+<span class="k">        </span><span class="n">reduce</span><span class="p">(</span><span class="n">e</span><span class="p">,</span> <span class="no">false</span><span class="p">,</span> <span class="k">fn</span> <span class="p">(</span><span class="n">v</span><span class="p">,</span> <span class="n">acc</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">acc</span> <span class="ow">or</span> <span class="n">x</span> <span class="o">==</span> <span class="n">v</span> <span class="k">end</span><span class="p">)</span>
+      <span class="k">end</span>
+    <span class="k">end</span>
+  <span class="k">end</span>
+<span class="k">end</span>
+</code></pre></div>
+
+
+<p>By simply writing <code>use Enumerable.Mixin</code> we now get <code>count</code> and <code>member?</code>
+defined in our module. The argument to <code>__using__</code> we&rsquo;re ignoring is a list of
+keywords that you can use with <code>use</code>, for example <code>use ExUnit.TestCase, async:
+true</code>.</p>
+
+<p>With the mixin our code becomes simpler:</p>
+
+<div class="highlight"><pre><code class="elixir"><span class="k">defimpl</span> <span class="no">Enumerable</span><span class="p">,</span> <span class="ss">for:</span> <span class="no">BinTree</span><span class="o">.</span><span class="no">Tree</span> <span class="k">do</span>
+<span class="k">  </span><span class="kn">use</span> <span class="no">Enumerable</span><span class="o">.</span><span class="no">Mixin</span>
+  
+  <span class="k">def</span> <span class="n">reduce</span><span class="p">(</span><span class="no">nil</span><span class="p">,</span> <span class="n">acc</span><span class="p">,</span> <span class="n">_</span><span class="p">),</span> <span class="k">do</span><span class="p">:</span> <span class="n">acc</span>
+  <span class="k">def</span> <span class="n">reduce</span><span class="p">(</span><span class="no">BinTree</span><span class="p">[</span><span class="ss">value:</span> <span class="n">value</span><span class="p">,</span> <span class="ss">left:</span> <span class="n">left</span><span class="p">,</span> <span class="ss">right:</span> <span class="n">right</span><span class="p">],</span> <span class="n">acc</span><span class="p">,</span> <span class="n">fun</span><span class="p">)</span> <span class="k">do</span>
+<span class="k">    </span><span class="n">acc1</span> <span class="o">=</span> <span class="n">fun</span><span class="o">.</span><span class="p">(</span><span class="n">value</span><span class="p">,</span> <span class="n">acc</span><span class="p">)</span>
+    <span class="n">acc2</span> <span class="o">=</span> <span class="n">reduce</span><span class="p">(</span><span class="n">left</span><span class="p">,</span> <span class="n">acc1</span><span class="p">,</span> <span class="n">fun</span><span class="p">)</span>
+    <span class="n">reduce</span><span class="p">(</span><span class="n">right</span><span class="p">,</span> <span class="n">acc2</span><span class="p">,</span> <span class="n">fun</span><span class="p">)</span>
+  <span class="k">end</span>
+<span class="k">end</span>
+</code></pre></div>
+
+
+<p>Certainly an improvement. But what if we want to define one of the methods we
+generated. For example if our binary tree has the invariant &ldquo;left.value &lt; value
+&lt; right.value&rdquo; we can use that for faster member testing.</p>
+
+<p>To support this we&rsquo;ll mark the mixed in functions as overridable. That means
+that if the compiler comes across a new definition for the function (i.e.
+function clauses that aren&rsquo;t right next to previous clauses of the function) it
+will not complain but forget about the old definition of the function and use
+the new one.</p>
+
+<div class="highlight"><pre><code class="elixir"><span class="k">defmodule</span> <span class="no">Enumerable</span><span class="o">.</span><span class="no">Mixin</span> <span class="k">do</span>
+<span class="k">  defmacro</span> <span class="n">__using__</span><span class="p">(</span><span class="n">_</span><span class="p">)</span> <span class="k">do</span>
+<span class="k">    </span><span class="kn">quote</span> <span class="ss">location:</span> <span class="n">keep</span> <span class="k">do</span>
+<span class="k">      def</span> <span class="n">count</span><span class="p">(</span><span class="n">e</span><span class="p">)</span> <span class="k">do</span>
+<span class="k">        </span><span class="n">reduce</span><span class="p">(</span><span class="n">e</span><span class="p">,</span> <span class="m">0</span><span class="p">,</span> <span class="k">fn</span> <span class="p">(</span><span class="n">_</span><span class="p">,</span> <span class="n">acc</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">acc</span> <span class="o">+</span> <span class="m">1</span> <span class="k">end</span><span class="p">)</span>
+      <span class="k">end</span>
+      <span class="k">def</span> <span class="n">member?</span><span class="p">(</span><span class="n">e</span><span class="p">,</span> <span class="n">x</span><span class="p">)</span> <span class="k">do</span>
+<span class="k">        </span><span class="n">reduce</span><span class="p">(</span><span class="n">e</span><span class="p">,</span> <span class="no">false</span><span class="p">,</span> <span class="k">fn</span> <span class="p">(</span><span class="n">v</span><span class="p">,</span> <span class="n">acc</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">acc</span> <span class="ow">or</span> <span class="n">x</span> <span class="o">==</span> <span class="n">v</span> <span class="k">end</span><span class="p">)</span>
+      <span class="k">end</span>
+      <span class="n">defoverridable</span> <span class="p">[</span><span class="ss">count:</span> <span class="m">1</span><span class="p">,</span> <span class="ss">member?:</span> <span class="m">2</span><span class="p">]</span>
+    <span class="k">end</span>
+  <span class="k">end</span>
+<span class="k">end</span>
+</code></pre></div>
+
+
+<p>The arguments to <code>defoverridable</code> are the function names and arities of the
+functions you want to be overridable. Now that <code>member?</code> is overridable we can
+define a new custom <code>member?</code>:</p>
+
+<div class="highlight"><pre><code class="elixir"><span class="k">defimpl</span> <span class="no">Enumerable</span><span class="p">,</span> <span class="ss">for:</span> <span class="no">BinTree</span><span class="o">.</span><span class="no">Tree</span> <span class="k">do</span>
+<span class="k">  </span><span class="kn">use</span> <span class="no">Enumerable</span><span class="o">.</span><span class="no">Mixin</span>
+  
+  <span class="k">def</span> <span class="n">reduce</span><span class="p">(</span><span class="no">nil</span><span class="p">,</span> <span class="n">acc</span><span class="p">,</span> <span class="n">_</span><span class="p">),</span> <span class="k">do</span><span class="p">:</span> <span class="n">acc</span>
+  <span class="k">def</span> <span class="n">reduce</span><span class="p">(</span><span class="no">BinTree</span><span class="p">[</span><span class="ss">value:</span> <span class="n">value</span><span class="p">,</span> <span class="ss">left:</span> <span class="n">left</span><span class="p">,</span> <span class="ss">right:</span> <span class="n">right</span><span class="p">],</span> <span class="n">acc</span><span class="p">,</span> <span class="n">fun</span><span class="p">)</span> <span class="k">do</span>
+<span class="k">    </span><span class="n">acc1</span> <span class="o">=</span> <span class="n">fun</span><span class="o">.</span><span class="p">(</span><span class="n">value</span><span class="p">,</span> <span class="n">acc</span><span class="p">)</span>
+    <span class="n">acc2</span> <span class="o">=</span> <span class="n">reduce</span><span class="p">(</span><span class="n">left</span><span class="p">,</span> <span class="n">acc1</span><span class="p">,</span> <span class="n">fun</span><span class="p">)</span>
+    <span class="n">reduce</span><span class="p">(</span><span class="n">right</span><span class="p">,</span> <span class="n">acc2</span><span class="p">,</span> <span class="n">fun</span><span class="p">)</span>
+  <span class="k">end</span>
+
+  <span class="k">def</span> <span class="n">member?</span><span class="p">(</span><span class="no">nil</span><span class="p">,</span> <span class="n">_</span><span class="p">),</span> <span class="k">do</span><span class="p">:</span> <span class="no">false</span>
+  <span class="k">def</span> <span class="n">member?</span><span class="p">(</span><span class="no">BinTree</span><span class="p">[</span><span class="ss">value:</span> <span class="n">value</span><span class="p">,</span> <span class="ss">left:</span> <span class="n">left</span><span class="p">,</span> <span class="ss">right:</span> <span class="n">right</span><span class="p">],</span> <span class="n">x</span><span class="p">)</span> <span class="k">do</span>
+<span class="k">    cond</span> <span class="k">do</span>
+<span class="k">      </span><span class="n">x</span> <span class="o">==</span> <span class="n">value</span> <span class="o">-&gt;</span> <span class="no">true</span>
+      <span class="n">x</span> <span class="o">&lt;</span> <span class="n">value</span>  <span class="o">-&gt;</span> <span class="n">member?</span><span class="p">(</span><span class="n">left</span><span class="p">,</span> <span class="n">x</span><span class="p">)</span>
+      <span class="n">x</span> <span class="o">&gt;</span> <span class="n">value</span>  <span class="o">-&gt;</span> <span class="n">member?</span><span class="p">(</span><span class="n">right</span><span class="p">,</span> <span class="n">x</span><span class="p">)</span>
+    <span class="k">end</span>
+  <span class="k">end</span>
+<span class="k">end</span>
+</code></pre></div>
+
+
+<p>Now our <code>member?</code> is much faster, assuming a balanced tree of 1024 nodes it only
+takes 10 steps instead of 1024 steps.</p>
+
+<h2>Behaviours</h2>
+
+<p>Another place where mixins come in handy is in OTP style behaviours. Take a look
+at a (slightly edited) bit of GenServer.Behaviour:</p>
+
+<div class="highlight"><pre><code class="elixir"><span class="k">defmodule</span> <span class="no">GenServer</span><span class="o">.</span><span class="no">Behaviour</span>
+  <span class="k">defmacro</span> <span class="n">__using__</span><span class="p">(</span><span class="n">_</span><span class="p">)</span> <span class="k">do</span>
+<span class="k">    </span><span class="kn">quote</span> <span class="ss">location:</span> <span class="ss">:keep</span> <span class="k">do</span>
+<span class="k">      </span><span class="nv">@behavior</span> <span class="ss">:gen_server</span>
+
+      <span class="k">def</span> <span class="n">init</span><span class="p">(</span><span class="n">args</span><span class="p">)</span> <span class="k">do</span>
+<span class="k">        </span><span class="p">{</span> <span class="ss">:ok</span><span class="p">,</span> <span class="n">args</span> <span class="p">}</span>
+      <span class="k">end</span>
+
+      <span class="k">def</span> <span class="n">handle_call</span><span class="p">(</span><span class="n">_request</span><span class="p">,</span> <span class="n">_from</span><span class="p">,</span> <span class="n">state</span><span class="p">)</span> <span class="k">do</span>
+<span class="k">        </span><span class="p">{</span> <span class="ss">:noreply</span><span class="p">,</span> <span class="n">state</span> <span class="p">}</span>
+      <span class="k">end</span>
+
+      <span class="c1"># functions ommitted</span>
+
+      <span class="n">defoverridable</span> <span class="p">[</span><span class="ss">init:</span> <span class="m">1</span><span class="p">,</span> <span class="ss">handle_call:</span> <span class="m">3</span><span class="p">,</span> <span class="ss">handle_info:</span> <span class="m">2</span><span class="p">,</span>
+        <span class="ss">handle_cast:</span> <span class="m">2</span><span class="p">,</span> <span class="ss">terminate:</span> <span class="m">2</span><span class="p">,</span> <span class="ss">code_change:</span> <span class="m">3</span><span class="p">]</span>
+    <span class="k">end</span>
+  <span class="k">end</span>
+<span class="k">end</span>
+</code></pre></div>
+
+
+<p>This declares the module that uses <code>GenServer.Behaviour</code> to be a gen_server
+callback module (<code>@behavior :gen_server</code>) and declares all the callbacks with
+simple no-op implementations, which are overridable. The idea is that you define
+just the callbacks you need without being forced to declare all of them just to
+keep the compiler happy.</p>
+
+<h2>Caveats</h2>
+
+<p>Mixins are a great tool. But like all tools they have their specific strengths
+and weaknesses. Ever tried to put a nail in a wall with a screw driver?</p>
+
+<p>Mixins are macro&rsquo;s and as such they tend to obscure the true meaning of the
+code. If you refer to a function that was introduced by a mixin people might
+wonder where that function came from. Luckily <code>use</code> is fairly easy to spot so
+this isn&rsquo;t such a big problem.</p>
+
+<p>Mixins also bloat the code by placing copies of definitions in multiple files.
+It&rsquo;s best to keep mixed in definitions simple, if you need something more
+complicated consider factoring out the part of a function that doesn&rsquo;t need to
+be in the target module into a separate function in some common module and call
+that.</p>
+
+<p>Finally badly documented mixins make understanding what goes on in the target
+module much harder than it needs to be. If you write a mixin make sure you
+include documentation on what functions it adds and what they do.</p>
+
+<p>These small quibbles aside mixins are a great tool for reducing the amount of
+boilerplate in modules.</p>
+</div>
+  
+  
+
+
+    </article>
   
   
     <article>
@@ -305,7 +536,7 @@ structure (a binary tree).</p>
 <span class="k">  defrecord</span> <span class="no">Tree</span><span class="p">,</span> <span class="ss">value:</span> <span class="no">nil</span><span class="p">,</span> <span class="ss">left:</span> <span class="no">nil</span><span class="p">,</span> <span class="ss">right:</span> <span class="no">nil</span>
 
   <span class="k">def</span> <span class="n">reduce</span><span class="p">(</span><span class="no">nil</span><span class="p">,</span> <span class="n">acc</span><span class="p">,</span> <span class="n">_</span><span class="p">),</span> <span class="k">do</span><span class="p">:</span> <span class="n">acc</span>
-  <span class="k">def</span> <span class="n">reduce</span><span class="p">(</span><span class="no">BinTree</span><span class="p">[</span><span class="ss">value:</span> <span class="n">value</span><span class="p">,</span> <span class="ss">left:</span> <span class="n">left</span><span class="p">,</span> <span class="ss">right:</span> <span class="n">right</span><span class="p">],</span> <span class="n">acc</span><span class="p">,</span> <span class="n">fun</span><span class="p">)</span> <span class="k">do</span>
+  <span class="k">def</span> <span class="n">reduce</span><span class="p">(</span><span class="no">Tree</span><span class="p">[</span><span class="ss">value:</span> <span class="n">value</span><span class="p">,</span> <span class="ss">left:</span> <span class="n">left</span><span class="p">,</span> <span class="ss">right:</span> <span class="n">right</span><span class="p">],</span> <span class="n">acc</span><span class="p">,</span> <span class="n">fun</span><span class="p">)</span> <span class="k">do</span>
 <span class="k">    </span><span class="n">acc1</span> <span class="o">=</span> <span class="n">fun</span><span class="o">.</span><span class="p">(</span><span class="n">value</span><span class="p">,</span> <span class="n">acc</span><span class="p">)</span>
     <span class="n">acc2</span> <span class="o">=</span> <span class="n">reduce</span><span class="p">(</span><span class="n">left</span><span class="p">,</span> <span class="n">acc1</span><span class="p">,</span> <span class="n">fun</span><span class="p">)</span>
     <span class="n">reduce</span><span class="p">(</span><span class="n">right</span><span class="p">,</span> <span class="n">acc2</span><span class="p">,</span> <span class="n">fun</span><span class="p">)</span>
@@ -557,6 +788,10 @@ advised to) define your own stream functions.</p>
     <section>
   <h1>Recent Posts</h1>
   <ul id="recent_posts">
+    
+      <li class="post">
+        <a href="/blog/2013/09/11/elixir-patterns-mixins/">Elixir Patterns: Mixins</a>
+      </li>
     
       <li class="post">
         <a href="/blog/2013/09/05/elixirs-enumerable/">Elixir&#8217;s Enumerable</a>

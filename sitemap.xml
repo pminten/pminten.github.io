@@ -2,15 +2,19 @@
 <urlset xmlns='http://www.sitemaps.org/schemas/sitemap/0.9'>
     <url>
         <loc>http://pminten.github.io/blog/2013/09/05/elixirs-enumerable/</loc>
-        <lastmod>2013-09-11T12:02:43+02:00</lastmod>
+        <lastmod>2013-09-11T16:27:34+02:00</lastmod>
+    </url>
+    <url>
+        <loc>http://pminten.github.io/blog/2013/09/11/elixir-patterns-mixins/</loc>
+        <lastmod>2013-09-11T17:53:36+02:00</lastmod>
     </url>
     <url>
         <loc>http://pminten.github.io/blog/archives/</loc>
-        <lastmod>2013-09-11T12:02:43+02:00</lastmod>
+        <lastmod>2013-09-11T17:53:36+02:00</lastmod>
     </url>
     <url>
         <loc>http://pminten.github.io/</loc>
-        <lastmod>2013-09-11T12:02:43+02:00</lastmod>
+        <lastmod>2013-09-11T17:53:36+02:00</lastmod>
     </url>
     <url>
         <loc>http://pminten.github.io/robots.txt</loc>
