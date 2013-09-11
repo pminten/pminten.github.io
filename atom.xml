@@ -4,7 +4,7 @@
   <title><![CDATA[A Cauldron of Black and White Stones]]></title>
   <link href="http://pminten.github.io/atom.xml" rel="self"/>
   <link href="http://pminten.github.io/"/>
-  <updated>2013-09-11T11:29:38+02:00</updated>
+  <updated>2013-09-11T12:02:47+02:00</updated>
   <id>http://pminten.github.io/</id>
   <author>
     <name><![CDATA[Peter Minten]]></name>
@@ -18,9 +18,7 @@
     <link href="http://pminten.github.io/blog/2013/09/05/elixirs-enumerable/"/>
     <updated>2013-09-05T00:00:00+02:00</updated>
     <id>http://pminten.github.io/blog/2013/09/05/elixirs-enumerable</id>
-    <content type="html"><![CDATA[<p>Included file &lsquo;JB/setup&rsquo; not found in _includes directory</p>
-
-<p>Sometimes Elixir can be quite a pain. Often it&rsquo;s because the libraries don&rsquo;t yet
+    <content type="html"><![CDATA[<p>Sometimes Elixir can be quite a pain. Often it&rsquo;s because the libraries don&rsquo;t yet
 have what you need or because a feature that looks like it&rsquo;s going to do exactly
 what you want turns out to be more limited than you would like (<code>|&gt;</code> I&rsquo;m looking
 at you). Sometimes however the pain is of a different kind, the kind you get
