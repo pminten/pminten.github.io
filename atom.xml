@@ -4,7 +4,7 @@
   <title><![CDATA[A Cauldron of Black and White Stones]]></title>
   <link href="http://pminten.github.io/atom.xml" rel="self"/>
   <link href="http://pminten.github.io/"/>
-  <updated>2013-09-11T17:53:36+02:00</updated>
+  <updated>2013-09-12T14:43:50+02:00</updated>
   <id>http://pminten.github.io/</id>
   <author>
     <name><![CDATA[Peter Minten]]></name>
@@ -12,6 +12,307 @@
   </author>
   <generator uri="http://octopress.org/">Octopress</generator>
 
+  
+  <entry>
+    <title type="html"><![CDATA[Elixir Patterns: Abstract Data Structures]]></title>
+    <link href="http://pminten.github.io/blog/2013/09/12/elixir-patterns-abstract-data-structures/"/>
+    <updated>2013-09-12T10:45:00+02:00</updated>
+    <id>http://pminten.github.io/blog/2013/09/12/elixir-patterns-abstract-data-structures</id>
+    <content type="html"><![CDATA[<p>Wouldn&rsquo;t you like to define a data structure as a module, with the internals
+hidden? Obviously you can, but because modules are not records the data
+structure then can&rsquo;t be used with protocols. You could define a record and in
+the <code>do</code> block put functions to manipulate it but then you&rsquo;re making it easy for
+your users to use the record directly, and trample on the invariants in the
+process.</p>
+
+<h2>Record tags</h2>
+
+<p>Luckily there is a trick. It&rsquo;s not very obvious but if you read the
+documentation for <code>Kernel.defrecordp/3</code> closely there is a tag field which is
+used in an example to set the tag to the name of the enclosing module. What&rsquo;s
+the tag? Well in Erlang, and Elixir, records are stored as tuples with the first
+field being a &ldquo;tag&rdquo; that distinguishes different records and the other fields
+being the data of the record. With <code>defrecord</code> the tag is always the name of the
+record module, with <code>defrecordp</code> it is the record name.</p>
+
+<figure class='code'> <div class="highlight"><table><tr><td class="gutter"><pre class="line-numbers"><span class='line-number'>1</span>
+<span class='line-number'>2</span>
+<span class='line-number'>3</span>
+<span class='line-number'>4</span>
+</pre></td><td class='code'><pre><code class='elixir'><span class='line'><span class="n">defrecordp</span> <span class="ss">:foo</span><span class="p">,</span> <span class="ss">a:</span> <span class="no">nil</span><span class="p">,</span> <span class="ss">b:</span> <span class="no">nil</span>
+</span><span class='line'><span class="c1"># name = :foo, tag = :foo, foo(a: 1, b: 2) ==&gt; { :foo, 1, 2 }</span>
+</span><span class='line'><span class="n">defrecordp</span> <span class="ss">:foo</span><span class="p">,</span> <span class="ss">:bar</span><span class="p">,</span> <span class="ss">a:</span> <span class="no">nil</span><span class="p">,</span> <span class="ss">b:</span> <span class="no">nil</span>
+</span><span class='line'><span class="c1"># name = :foo, tag = :bar, foo(a: 1, b: 2) ==&gt; { :bar, 1, 2 }</span>
+</span></code></pre></td></tr></table></div></figure>
+
+
+<p>When defining implementations of protocols the name you pass to <code>for:</code> is the
+tag of the record. This makes perfect sense as the protocol doesn&rsquo;t need to know
+anything about your record except how to recognize it, and that&rsquo;s what the tag
+is for.</p>
+
+<h2>An abstract binary tree</h2>
+
+<p>Using record tags you can write an abstract binary tree module like this:</p>
+
+<figure class='code'><figcaption><span>An abstract binary tree </span></figcaption>
+ <div class="highlight"><table><tr><td class="gutter"><pre class="line-numbers"><span class='line-number'>1</span>
+<span class='line-number'>2</span>
+<span class='line-number'>3</span>
+<span class='line-number'>4</span>
+<span class='line-number'>5</span>
+<span class='line-number'>6</span>
+<span class='line-number'>7</span>
+<span class='line-number'>8</span>
+<span class='line-number'>9</span>
+<span class='line-number'>10</span>
+<span class='line-number'>11</span>
+<span class='line-number'>12</span>
+<span class='line-number'>13</span>
+<span class='line-number'>14</span>
+<span class='line-number'>15</span>
+<span class='line-number'>16</span>
+<span class='line-number'>17</span>
+<span class='line-number'>18</span>
+<span class='line-number'>19</span>
+<span class='line-number'>20</span>
+<span class='line-number'>21</span>
+<span class='line-number'>22</span>
+<span class='line-number'>23</span>
+<span class='line-number'>24</span>
+<span class='line-number'>25</span>
+<span class='line-number'>26</span>
+<span class='line-number'>27</span>
+<span class='line-number'>28</span>
+<span class='line-number'>29</span>
+<span class='line-number'>30</span>
+<span class='line-number'>31</span>
+<span class='line-number'>32</span>
+<span class='line-number'>33</span>
+<span class='line-number'>34</span>
+<span class='line-number'>35</span>
+<span class='line-number'>36</span>
+<span class='line-number'>37</span>
+<span class='line-number'>38</span>
+<span class='line-number'>39</span>
+<span class='line-number'>40</span>
+</pre></td><td class='code'><pre><code class='elixir'><span class='line'><span class="k">defmodule</span> <span class="no">BinTree</span> <span class="k">do</span>
+</span><span class='line'><span class="k">  </span><span class="c1"># Invariant: left.value &lt;= value &lt;= right.value</span>
+</span><span class='line'>  <span class="n">defrecordp</span> <span class="ss">:tree</span><span class="p">,</span> <span class="bp">__MODULE__</span><span class="p">,</span> <span class="ss">value:</span> <span class="no">nil</span><span class="p">,</span> <span class="ss">left:</span> <span class="no">nil</span><span class="p">,</span> <span class="ss">right:</span> <span class="no">nil</span>
+</span><span class='line'>
+</span><span class='line'>  <span class="k">def</span> <span class="n">new</span><span class="p">()</span> <span class="k">do</span>
+</span><span class='line'><span class="k">    </span><span class="n">tree</span><span class="p">()</span>
+</span><span class='line'>  <span class="k">end</span>
+</span><span class='line'>
+</span><span class='line'>  <span class="k">def</span> <span class="n">from_enum</span><span class="p">(</span><span class="n">e</span><span class="p">)</span> <span class="k">do</span>
+</span><span class='line'><span class="k">    </span><span class="no">Enum</span><span class="o">.</span><span class="n">sort</span><span class="p">(</span><span class="n">e</span><span class="p">)</span> <span class="o">|&gt;</span> <span class="n">do_from_enum</span><span class="p">()</span>
+</span><span class='line'>  <span class="k">end</span>
+</span><span class='line'>
+</span><span class='line'>  <span class="k">defp</span> <span class="n">do_from_enum</span><span class="p">(</span><span class="n">e</span><span class="p">)</span> <span class="k">do</span>
+</span><span class='line'><span class="k">    </span><span class="n">count</span> <span class="o">=</span> <span class="no">Enum</span><span class="o">.</span><span class="n">count</span><span class="p">(</span><span class="n">e</span><span class="p">)</span>
+</span><span class='line'>    <span class="k">if</span> <span class="n">count</span> <span class="o">&gt;</span> <span class="m">0</span> <span class="k">do</span>
+</span><span class='line'><span class="k">      </span><span class="n">middle</span> <span class="o">=</span> <span class="n">div</span><span class="p">(</span><span class="n">count</span><span class="p">,</span> <span class="m">2</span><span class="p">)</span>
+</span><span class='line'>      <span class="p">{</span> <span class="n">left</span><span class="p">,</span> <span class="n">rest</span> <span class="p">}</span> <span class="o">=</span> <span class="no">Enum</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="n">e</span><span class="p">,</span> <span class="n">middle</span><span class="p">)</span>
+</span><span class='line'>      <span class="p">{</span> <span class="p">[</span><span class="n">value</span><span class="p">],</span> <span class="n">right</span> <span class="p">}</span> <span class="o">=</span> <span class="no">Enum</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="n">rest</span><span class="p">,</span> <span class="m">1</span><span class="p">)</span>
+</span><span class='line'>      <span class="n">tree</span><span class="p">(</span><span class="ss">value:</span> <span class="n">value</span><span class="p">,</span> <span class="ss">left:</span> <span class="n">do_from_enum</span><span class="p">(</span><span class="n">left</span><span class="p">),</span> <span class="ss">right:</span> <span class="n">do_from_enum</span><span class="p">(</span><span class="n">right</span><span class="p">))</span>
+</span><span class='line'>    <span class="k">else</span>
+</span><span class='line'>      <span class="no">nil</span>
+</span><span class='line'>    <span class="k">end</span>
+</span><span class='line'>  <span class="k">end</span>
+</span><span class='line'>
+</span><span class='line'>  <span class="k">def</span> <span class="n">reduce</span><span class="p">(</span><span class="no">nil</span><span class="p">,</span> <span class="n">acc</span><span class="p">,</span> <span class="n">_</span><span class="p">)</span> <span class="k">do</span>
+</span><span class='line'><span class="k">    </span><span class="n">acc</span>
+</span><span class='line'>  <span class="k">end</span>
+</span><span class='line'>  <span class="k">def</span> <span class="n">reduce</span><span class="p">(</span><span class="n">t</span><span class="p">,</span> <span class="n">acc</span><span class="p">,</span> <span class="n">f</span><span class="p">)</span> <span class="k">do</span>
+</span><span class='line'><span class="k">    </span><span class="p">[</span><span class="n">value</span><span class="p">,</span> <span class="n">left</span><span class="p">,</span> <span class="n">right</span><span class="p">]</span> <span class="o">=</span> <span class="n">tree</span><span class="p">(</span><span class="n">t</span><span class="p">,</span> <span class="p">[</span><span class="ss">:value</span><span class="p">,</span> <span class="ss">:left</span><span class="p">,</span> <span class="ss">:right</span><span class="p">])</span>
+</span><span class='line'>    <span class="n">acc1</span> <span class="o">=</span> <span class="n">reduce</span><span class="p">(</span><span class="n">left</span><span class="p">,</span> <span class="n">acc</span><span class="p">,</span> <span class="n">f</span><span class="p">)</span>
+</span><span class='line'>    <span class="n">acc2</span> <span class="o">=</span> <span class="n">f</span><span class="o">.</span><span class="p">(</span><span class="n">value</span><span class="p">,</span> <span class="n">acc1</span><span class="p">)</span>
+</span><span class='line'>    <span class="n">reduce</span><span class="p">(</span><span class="n">right</span><span class="p">,</span> <span class="n">acc2</span><span class="p">,</span> <span class="n">f</span><span class="p">)</span>
+</span><span class='line'>  <span class="k">end</span>
+</span><span class='line'><span class="k">end</span>
+</span><span class='line'>
+</span><span class='line'><span class="k">defimpl</span> <span class="no">Enumerable</span><span class="p">,</span> <span class="ss">for:</span> <span class="no">BinTree</span> <span class="k">do</span>
+</span><span class='line'><span class="k">  def</span> <span class="n">reduce</span><span class="p">(</span><span class="n">t</span><span class="p">,</span> <span class="n">acc</span><span class="p">,</span> <span class="n">f</span><span class="p">),</span> <span class="k">do</span><span class="p">:</span> <span class="no">BinTree</span><span class="o">.</span><span class="n">reduce</span><span class="p">(</span><span class="n">t</span><span class="p">,</span> <span class="n">acc</span><span class="p">,</span> <span class="n">f</span><span class="p">)</span>
+</span><span class='line'>  <span class="k">def</span> <span class="n">count</span><span class="p">(</span><span class="n">t</span><span class="p">),</span> <span class="k">do</span><span class="p">:</span> <span class="no">BinTree</span><span class="o">.</span><span class="n">reduce</span><span class="p">(</span><span class="n">t</span><span class="p">,</span> <span class="m">0</span><span class="p">,</span> <span class="k">fn</span> <span class="n">_</span><span class="p">,</span> <span class="n">n</span> <span class="o">-&gt;</span> <span class="n">n</span> <span class="o">+</span> <span class="m">1</span> <span class="k">end</span><span class="p">)</span>
+</span><span class='line'>  <span class="k">def</span> <span class="n">member?</span><span class="p">(</span><span class="n">t</span><span class="p">,</span> <span class="n">x</span><span class="p">),</span> <span class="k">do</span><span class="p">:</span> <span class="no">BinTree</span><span class="o">.</span><span class="n">reduce</span><span class="p">(</span><span class="n">t</span><span class="p">,</span> <span class="no">false</span><span class="p">,</span> <span class="k">fn</span> <span class="n">y</span><span class="p">,</span> <span class="n">found</span> <span class="o">-&gt;</span> <span class="n">found</span> <span class="o">||</span> <span class="n">x</span> <span class="o">==</span> <span class="n">y</span> <span class="k">end</span><span class="p">)</span>
+</span><span class='line'><span class="k">end</span>
+</span></code></pre></td></tr></table></div></figure>
+
+
+<p>The <code>__MODULE__</code> is a special variable that expands to the name of the module. I
+could have written <code>BinTree</code> in it&rsquo;s place, but <code>__MODULE__</code> stands out and is a
+good reminder of what trick is used here.</p>
+
+<p>The module works as you&rsquo;d expect:</p>
+
+<figure class='code'> <div class="highlight"><table><tr><td class="gutter"><pre class="line-numbers"><span class='line-number'>1</span>
+<span class='line-number'>2</span>
+<span class='line-number'>3</span>
+<span class='line-number'>4</span>
+</pre></td><td class='code'><pre><code class='elixir'><span class='line'><span class="no">BinTree</span><span class="o">.</span><span class="n">from_enum</span><span class="p">(</span><span class="m">1</span><span class="o">..</span><span class="m">4</span><span class="p">)</span>
+</span><span class='line'><span class="c1"># {BinTree, 3, {BinTree, 2, {BinTree, 1, nil, nil}, nil}, {BinTree, 4, nil, nil}}</span>
+</span><span class='line'><span class="no">BinTree</span><span class="o">.</span><span class="n">from_enum</span><span class="p">(</span><span class="m">1</span><span class="o">..</span><span class="m">4</span><span class="p">)</span> <span class="o">|&gt;</span> <span class="no">Enum</span><span class="o">.</span><span class="n">count</span><span class="p">()</span>
+</span><span class='line'><span class="c1"># 4</span>
+</span></code></pre></td></tr></table></div></figure>
+
+
+<p>We&rsquo;re still showing the guts of the record through <code>inspect</code> though, but that&rsquo;s
+easily changed.</p>
+
+<figure class='code'> <div class="highlight"><table><tr><td class="gutter"><pre class="line-numbers"><span class='line-number'>1</span>
+<span class='line-number'>2</span>
+<span class='line-number'>3</span>
+</pre></td><td class='code'><pre><code class='elixir'><span class='line'><span class="k">defimpl</span> <span class="no">Inspect</span><span class="p">,</span> <span class="ss">for:</span> <span class="no">BinTree</span> <span class="k">do</span>
+</span><span class='line'><span class="k">  def</span> <span class="n">inspect</span><span class="p">(</span><span class="n">t</span><span class="p">,</span> <span class="n">_</span><span class="p">),</span> <span class="k">do</span><span class="p">:</span> <span class="s2">&quot;</span><span class="err">#</span><span class="s2">&lt;BinTree </span><span class="si">#{</span><span class="n">inspect</span><span class="p">(</span><span class="no">Enum</span><span class="o">.</span><span class="n">to_list</span><span class="p">(</span><span class="n">t</span><span class="p">))</span><span class="si">}</span><span class="s2">&gt;&quot;</span>
+</span><span class='line'><span class="k">end</span>
+</span></code></pre></td></tr></table></div></figure>
+
+
+
+
+<figure class='code'> <div class="highlight"><table><tr><td class="gutter"><pre class="line-numbers"><span class='line-number'>1</span>
+<span class='line-number'>2</span>
+</pre></td><td class='code'><pre><code class='elixir'><span class='line'><span class="no">BinTree</span><span class="o">.</span><span class="n">from_enum</span><span class="p">(</span><span class="m">1</span><span class="o">..</span><span class="m">4</span><span class="p">)</span>
+</span><span class='line'><span class="c1"># #&lt;BinTree [1, 2, 3, 4]&gt;</span>
+</span></code></pre></td></tr></table></div></figure>
+
+
+<p>Just remember that we&rsquo;re only hiding the representation when pretty printed, if
+you pass <code>raw: true</code> to inspect you&rsquo;ll still see the internal representation.
+Due to how Erlang (and thus Elixir) works this is unavoidable, but the pretty
+printing serves as a powerful reminder to the user that the internal
+representation should not be relied upon.</p>
+
+<h2>Dispatching on the record tag</h2>
+
+<p>There is another trick I&rsquo;d like to show you. If you look at the source of the
+<code>Set</code> module from the standard library most functions look like this:</p>
+
+<figure class='code'><figcaption><span>A Set function</span><a href='https://github.com/elixir-lang/elixir/blob/87be134a5b91773643ea292b521c9a8ec8167894/lib/elixir/lib/set.ex#L77-L79'>link</a></figcaption> <div class="highlight"><table><tr><td class="gutter"><pre class="line-numbers"><span class='line-number'>1</span>
+<span class='line-number'>2</span>
+<span class='line-number'>3</span>
+</pre></td><td class='code'><pre><code class='elixir'><span class='line'><span class="k">def</span> <span class="n">difference</span><span class="p">(</span><span class="n">set1</span><span class="p">,</span> <span class="n">set2</span><span class="p">)</span> <span class="k">do</span>
+</span><span class='line'><span class="k">  </span><span class="n">target</span><span class="p">(</span><span class="n">set1</span><span class="p">)</span><span class="o">.</span><span class="n">difference</span><span class="p">(</span><span class="n">set1</span><span class="p">,</span> <span class="n">set2</span><span class="p">)</span>
+</span><span class='line'><span class="k">end</span>
+</span></code></pre></td></tr></table></div></figure>
+
+
+<p>Huh? Object-oriented programming. Nope, just plain old <code>apply/3</code> (if the first
+argument is not a literal symbol Elixir translates this to runtime apply call).
+The magic is in the <code>target</code> macro:</p>
+
+<figure class='code'><figcaption><span>target macro</span><a href='https://github.com/elixir-lang/elixir/blob/87be134a5b91773643ea292b521c9a8ec8167894/lib/elixir/lib/set.ex#L39-L47'>link</a></figcaption> <div class="highlight"><table><tr><td class="gutter"><pre class="line-numbers"><span class='line-number'>1</span>
+<span class='line-number'>2</span>
+<span class='line-number'>3</span>
+<span class='line-number'>4</span>
+<span class='line-number'>5</span>
+<span class='line-number'>6</span>
+<span class='line-number'>7</span>
+<span class='line-number'>8</span>
+<span class='line-number'>9</span>
+</pre></td><td class='code'><pre><code class='elixir'><span class='line'><span class="k">defmacrop</span> <span class="n">target</span><span class="p">(</span><span class="n">set</span><span class="p">)</span> <span class="k">do</span>
+</span><span class='line'><span class="k">  </span><span class="kn">quote</span> <span class="k">do</span>
+</span><span class='line'><span class="k">    if</span> <span class="n">is_tuple</span><span class="p">(</span><span class="kn">unquote</span><span class="p">(</span><span class="n">set</span><span class="p">))</span> <span class="k">do</span>
+</span><span class='line'><span class="k">      </span><span class="n">elem</span><span class="p">(</span><span class="kn">unquote</span><span class="p">(</span><span class="n">set</span><span class="p">),</span> <span class="m">0</span><span class="p">)</span>
+</span><span class='line'>    <span class="k">else</span>
+</span><span class='line'>      <span class="n">unsupported_set</span><span class="p">(</span><span class="kn">unquote</span><span class="p">(</span><span class="n">set</span><span class="p">))</span>
+</span><span class='line'>    <span class="k">end</span>
+</span><span class='line'>  <span class="k">end</span>
+</span><span class='line'><span class="k">end</span>
+</span></code></pre></td></tr></table></div></figure>
+
+
+<p>Remember that the first field of a record is the tag, so <code>elem(rec, 0)</code> extracts
+the record tag. If you call <code>Set.difference(s1, s2)</code> (where <code>s1</code> and <code>s2</code> are
+HashSets) <code>target(s1).difference(s1, s2)</code> gets called, which expands to
+(ignoring the tuple check) <code>elem(s1, 0).difference(s1, s2)</code>, which effectively
+translates to <code>apply(HashSet, :difference, [s1, s2])</code>.</p>
+
+<p>When I first saw that code I spent some time scratching my head over why they
+didn&rsquo;t use a protocol. I&rsquo;m still not 100% sure, but I strongly suspect
+performance is one of the main reasons. As a test I made a very simple benchmark
+to compare the overhead of calling through a protocol vs calling through
+<code>apply</code>.</p>
+
+<div><script src='https://gist.github.com/2b125e2165713ec49c86.js'></script>
+<noscript><pre><code></code></pre></noscript></div>
+
+
+<p>Running this a number of times gives a pretty consistent result after the first
+few runs: the protocol calls are about 14-15 times slower than the dispatch
+calls (which is how I named the &ldquo;through apply&rdquo; calls, not sure if it&rsquo;s the
+right term).</p>
+
+<p>Now protocol calls are known to be slow (that&rsquo;s a big part of why Elixir has
+reduce based collections, those only require a few protocol calls even for
+large amounts of data). There are
+<a href="https://github.com/elixir-lang/elixir/issues/950">ideas</a> on how to fix that and
+once those get implemented things may change for released code. For now however
+indirect calls through <code>apply</code> are significantly faster.</p>
+
+<figure class='code'><figcaption><span>Set&#8217;s callbacks</span><a href='https://github.com/elixir-lang/elixir/blob/87be134a5b91773643ea292b521c9a8ec8167894/lib/elixir/lib/set.ex#L20-L37'>link</a></figcaption> <div class="highlight"><table><tr><td class="gutter"><pre class="line-numbers"><span class='line-number'>1</span>
+<span class='line-number'>2</span>
+<span class='line-number'>3</span>
+<span class='line-number'>4</span>
+<span class='line-number'>5</span>
+<span class='line-number'>6</span>
+<span class='line-number'>7</span>
+<span class='line-number'>8</span>
+<span class='line-number'>9</span>
+<span class='line-number'>10</span>
+<span class='line-number'>11</span>
+<span class='line-number'>12</span>
+<span class='line-number'>13</span>
+<span class='line-number'>14</span>
+<span class='line-number'>15</span>
+<span class='line-number'>16</span>
+<span class='line-number'>17</span>
+<span class='line-number'>18</span>
+</pre></td><td class='code'><pre><code class='elixir'><span class='line'><span class="kn">use</span> <span class="no">Behaviour</span>
+</span><span class='line'>
+</span><span class='line'><span class="nv">@type</span> <span class="n">value</span> <span class="p">::</span> <span class="n">any</span>
+</span><span class='line'><span class="nv">@type</span> <span class="n">values</span> <span class="p">::</span> <span class="p">[</span> <span class="n">value</span> <span class="p">]</span>
+</span><span class='line'><span class="nv">@type</span> <span class="n">t</span> <span class="p">::</span> <span class="n">tuple</span>
+</span><span class='line'>
+</span><span class='line'><span class="n">defcallback</span> <span class="n">delete</span><span class="p">(</span><span class="n">t</span><span class="p">,</span> <span class="n">value</span><span class="p">)</span> <span class="p">::</span> <span class="n">t</span>
+</span><span class='line'><span class="n">defcallback</span> <span class="n">difference</span><span class="p">(</span><span class="n">t</span><span class="p">,</span> <span class="n">t</span><span class="p">)</span> <span class="p">::</span> <span class="n">t</span>
+</span><span class='line'><span class="n">defcallback</span> <span class="n">disjoint?</span><span class="p">(</span><span class="n">t</span><span class="p">,</span> <span class="n">t</span><span class="p">)</span> <span class="p">::</span> <span class="n">boolean</span>
+</span><span class='line'><span class="n">defcallback</span> <span class="n">empty</span><span class="p">(</span><span class="n">t</span><span class="p">)</span> <span class="p">::</span> <span class="n">t</span>
+</span><span class='line'><span class="n">defcallback</span> <span class="n">equal?</span><span class="p">(</span><span class="n">t</span><span class="p">,</span> <span class="n">t</span><span class="p">)</span> <span class="p">::</span> <span class="n">boolean</span>
+</span><span class='line'><span class="n">defcallback</span> <span class="n">intersection</span><span class="p">(</span><span class="n">t</span><span class="p">,</span> <span class="n">t</span><span class="p">)</span> <span class="p">::</span> <span class="n">t</span>
+</span><span class='line'><span class="n">defcallback</span> <span class="n">member?</span><span class="p">(</span><span class="n">t</span><span class="p">,</span> <span class="n">value</span><span class="p">)</span> <span class="p">::</span> <span class="n">boolean</span>
+</span><span class='line'><span class="n">defcallback</span> <span class="n">put</span><span class="p">(</span><span class="n">t</span><span class="p">,</span> <span class="n">value</span><span class="p">)</span> <span class="p">::</span> <span class="n">t</span>
+</span><span class='line'><span class="n">defcallback</span> <span class="n">size</span><span class="p">(</span><span class="n">t</span><span class="p">)</span> <span class="p">::</span> <span class="n">non_neg_integer</span>
+</span><span class='line'><span class="n">defcallback</span> <span class="n">subset?</span><span class="p">(</span><span class="n">t</span><span class="p">,</span> <span class="n">t</span><span class="p">)</span> <span class="p">::</span> <span class="n">boolean</span>
+</span><span class='line'><span class="n">defcallback</span> <span class="n">to_list</span><span class="p">(</span><span class="n">t</span><span class="p">)</span> <span class="p">::</span> <span class="n">list</span><span class="p">()</span>
+</span><span class='line'><span class="n">defcallback</span> <span class="n">union</span><span class="p">(</span><span class="n">t</span><span class="p">,</span> <span class="n">t</span><span class="p">)</span> <span class="p">::</span> <span class="n">t</span>
+</span></code></pre></td></tr></table></div></figure>
+
+
+<p>If you look at <code>Set</code> again notice that it&rsquo;s a behaviour with callbacks of the
+same types and arity for each exposed function. All the implementation modules
+(just <code>HashSet</code> in the standard library) implement the <code>Set</code> behaviour and the
+compiler makes sure that all the functions are indeed implemented. If you&rsquo;re
+going to do the same protocol replacing trick as <code>Set</code> it&rsquo;s a good idea to
+define a behaviour as well.</p>
+
+<h2>Caveats</h2>
+
+<p>So what are the downsides of the abstract data structure technique? Well you
+lose the nice record syntax and decomposition and have to work with the macros
+<code>defrecordp</code> generates for you. And it&rsquo;s a bit more work getting everything set
+up.</p>
+
+<p>But let&rsquo;s face it, those are minor issues. What you get is the ability to
+offer a data structure without exposing it&rsquo;s representation. You get the ability
+to make a data structure that (ugly hacks aside) can only be manipulated through
+the API you provide, an API that maintains the internal invariants.</p>
+
+<p>If you define a public record stop and think for a moment why you are defining
+the record that way, because often hiding it in a module results in cleaner,
+more maintainable code.</p>
+]]></content>
+  </entry>
   
   <entry>
     <title type="html"><![CDATA[Elixir Patterns: Mixins]]></title>
