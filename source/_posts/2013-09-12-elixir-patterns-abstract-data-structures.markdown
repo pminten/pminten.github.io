@@ -2,7 +2,7 @@
 layout: post
 title: "Elixir Patterns: Abstract Data Structures"
 date: 2013-09-12 10:45
-categories: elixir
+categories: [elixir, "Elixir Patterns"]
 ---
 
 Wouldn't you like to define a data structure as a module, with the internals

@@ -2,7 +2,7 @@
 layout: post
 title: "Elixir Patterns: Mixins"
 date: 2013-09-11 13:48
-categories: elixir
+categories: [elixir, "Elixir Patterns"]
 ---
 
 Elixir's macros are a powerful way to add language features without encoding
