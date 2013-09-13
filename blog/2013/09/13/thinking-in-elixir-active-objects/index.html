@@ -5,11 +5,12 @@
 <!--[if (gt IE 8)|(gt IEMobile 7)|!(IEMobile)|!(IE)]><!--><html class="no-js" lang="en"><!--<![endif]-->
 <head>
   <meta charset="utf-8">
-  <title>Category: elixir - A Cauldron of Black and White Stones</title>
+  <title>Thinking in Elixir: Active Objects - A Cauldron of Black and White Stones</title>
   <meta name="author" content="Peter Minten">
 
   
-  <meta name="description" content="Category: elixir">
+  <meta name="description" content="In this new blog series I will try to explain some of the concepts behind
+programming in Elixir. This will be less practical oriented than my Elixir &hellip;">
   
 
   <!-- http://t.co/dKP3o1e -->
@@ -18,7 +19,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
 
   
-  <link rel="canonical" href="http://pminten.github.ioblog/categories/elixir">
+  <link rel="canonical" href="http://pminten.github.io/blog/2013/09/13/thinking-in-elixir-active-objects">
   <link href="/favicon.png" rel="icon">
   <link href="/stylesheets/screen.css" media="screen, projection" rel="stylesheet" type="text/css">
   <link href="/atom.xml" rel="alternate" title="A Cauldron of Black and White Stones" type="application/atom+xml">
@@ -64,77 +65,90 @@
   <div id="main">
     <div id="content">
       <div>
-<article role="article">
+<article class="hentry" role="article">
   
   <header>
-    <h1 class="entry-title">Category: Elixir</h1>
+    
+      <h1 class="entry-title">Thinking in Elixir: Active Objects</h1>
+    
+    
+      <p class="meta">
+        
+
+
+
+
+
+
+
+
+  
+
+
+<time datetime="2013-09-13T13:39:00+02:00" pubdate data-updated="true">Sep 13<span>th</span>, 2013</time>
+        
+      </p>
     
   </header>
-  
-  <div id="blog-archives" class="category">
 
 
+<div class="entry-content"><p>In this new blog series I will try to explain some of the concepts behind
+programming in Elixir. This will be less practical oriented than my Elixir
+Patterns series and more focussed on the big ideas of functional concurrent
+programming as supported by Elixir.</p>
 
-  
-  <h2>2013</h2>
-
-<article>
-  
-<h1><a href="/blog/2013/09/13/thinking-in-elixir-active-objects/">Thinking in Elixir: Active Objects</a></h1>
-<time datetime="2013-09-13T13:39:00+02:00" pubdate><span class='month'>Sep</span> <span class='day'>13</span> <span class='year'>2013</span></time>
-
-<footer>
-  <span class="categories">posted in <a class='category' href='/blog/categories/thinking-in-elixir/'>Thinking in Elixir</a>, <a class='category' href='/blog/categories/elixir/'>elixir</a></span>
-</footer>
-
-
-</article>
-
-
-
-<article>
-  
-<h1><a href="/blog/2013/09/12/elixir-patterns-abstract-data-structures/">Elixir Patterns: Abstract Data Structures</a></h1>
-<time datetime="2013-09-12T10:45:00+02:00" pubdate><span class='month'>Sep</span> <span class='day'>12</span> <span class='year'>2013</span></time>
-
-<footer>
-  <span class="categories">posted in <a class='category' href='/blog/categories/elixir-patterns/'>Elixir Patterns</a>, <a class='category' href='/blog/categories/elixir/'>elixir</a></span>
-</footer>
-
-
-</article>
-
-
-
-<article>
-  
-<h1><a href="/blog/2013/09/11/elixir-patterns-mixins/">Elixir Patterns: Mixins</a></h1>
-<time datetime="2013-09-11T13:48:00+02:00" pubdate><span class='month'>Sep</span> <span class='day'>11</span> <span class='year'>2013</span></time>
-
-<footer>
-  <span class="categories">posted in <a class='category' href='/blog/categories/elixir-patterns/'>Elixir Patterns</a>, <a class='category' href='/blog/categories/elixir/'>elixir</a></span>
-</footer>
-
-
-</article>
-
-
-
-<article>
-  
-<h1><a href="/blog/2013/09/05/elixirs-enumerable/">Elixir's Enumerable</a></h1>
-<time datetime="2013-09-05T00:00:00+02:00" pubdate><span class='month'>Sep</span> <span class='day'>05</span> <span class='year'>2013</span></time>
-
-<footer>
-  <span class="categories">posted in <a class='category' href='/blog/categories/elixir/'>elixir</a></span>
-</footer>
-
-
-</article>
-
+<p>Elixir doesn&rsquo;t have objects in the sense that for example Ruby has them. There&rsquo;s
+no <code>Set.new([1,2]).length()</code>. You have to write `Set.length(HashSet.new(</p>
 </div>
 
+
+  <footer>
+    <p class="meta">
+      
   
+
+<span class="byline author vcard">Posted by <span class="fn">Peter Minten</span></span>
+
+      
+
+
+
+
+
+
+
+
+  
+
+
+<time datetime="2013-09-13T13:39:00+02:00" pubdate data-updated="true">Sep 13<span>th</span>, 2013</time>
+      
+
+<span class="categories">
+  
+    <a class='category' href='/blog/categories/thinking-in-elixir/'>Thinking in Elixir</a>, <a class='category' href='/blog/categories/elixir/'>elixir</a>
+  
+</span>
+
+
+    </p>
+    
+      <div class="sharing">
+  
+  <a href="//twitter.com/share" class="twitter-share-button" data-url="http://pminten.github.io/blog/2013/09/13/thinking-in-elixir-active-objects/" data-via="" data-counturl="http://pminten.github.io/blog/2013/09/13/thinking-in-elixir-active-objects/" >Tweet</a>
+  
+  
+  
+</div>
+
+    
+    <p class="meta">
+      
+        <a class="basic-alignment left" href="/blog/2013/09/12/elixir-patterns-abstract-data-structures/" title="Previous Post: Elixir Patterns: Abstract Data Structures">&laquo; Elixir Patterns: Abstract Data Structures</a>
+      
+      
+    </p>
+  </footer>
 </article>
 
 </div>

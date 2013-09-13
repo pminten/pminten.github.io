@@ -4,7 +4,7 @@
   <title><![CDATA[A Cauldron of Black and White Stones]]></title>
   <link href="http://pminten.github.io/atom.xml" rel="self"/>
   <link href="http://pminten.github.io/"/>
-  <updated>2013-09-13T13:33:31+02:00</updated>
+  <updated>2013-09-13T13:47:46+02:00</updated>
   <id>http://pminten.github.io/</id>
   <author>
     <name><![CDATA[Peter Minten]]></name>
@@ -12,6 +12,21 @@
   </author>
   <generator uri="http://octopress.org/">Octopress</generator>
 
+  
+  <entry>
+    <title type="html"><![CDATA[Thinking in Elixir: Active Objects]]></title>
+    <link href="http://pminten.github.io/blog/2013/09/13/thinking-in-elixir-active-objects/"/>
+    <updated>2013-09-13T13:39:00+02:00</updated>
+    <id>http://pminten.github.io/blog/2013/09/13/thinking-in-elixir-active-objects</id>
+    <content type="html"><![CDATA[<p>In this new blog series I will try to explain some of the concepts behind
+programming in Elixir. This will be less practical oriented than my Elixir
+Patterns series and more focussed on the big ideas of functional concurrent
+programming as supported by Elixir.</p>
+
+<p>Elixir doesn&rsquo;t have objects in the sense that for example Ruby has them. There&rsquo;s
+no <code>Set.new([1,2]).length()</code>. You have to write `Set.length(HashSet.new(</p>
+]]></content>
+  </entry>
   
   <entry>
     <title type="html"><![CDATA[Elixir Patterns: Abstract Data Structures]]></title>
