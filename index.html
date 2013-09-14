@@ -9,8 +9,8 @@
   <meta name="author" content="Peter Minten">
 
   
-  <meta name="description" content="Wouldn&rsquo;t you like to define a data structure as a module, with the internals
-hidden? Obviously you can, but because modules are not records the &hellip;">
+  <meta name="description" content="In this new blog series I will try to explain some of the concepts behind
+programming in Elixir. This will be less practical oriented than my Elixir &hellip;">
   
 
   <!-- http://t.co/dKP3o1e -->
@@ -66,6 +66,111 @@ hidden? Obviously you can, but because modules are not records the &hellip;">
     <div id="content">
       <div class="blog-index">
   
+  
+  
+    <article>
+      
+  <header>
+    
+      <h1 class="entry-title"><a href="/blog/2013/09/14/thinking-in-elixir-hide-your-messages/">Thinking in Elixir: Hide Your Messages</a></h1>
+    
+    
+      <p class="meta">
+        
+
+
+
+
+
+
+
+
+  
+
+
+<time datetime="2013-09-14T13:39:00+02:00" pubdate data-updated="true">Sep 14<span>th</span>, 2013</time>
+        
+      </p>
+    
+  </header>
+
+
+  <div class="entry-content"><p>In this new blog series I will try to explain some of the concepts behind
+programming in Elixir. This will be less practical oriented than my Elixir
+Patterns series and more focussed on the big ideas of functional concurrent
+programming as supported by Elixir.</p>
+
+<h2>Interface, messages and implementation</h2>
+
+<p>Elixir is a language in which concurrency is done by passing messages between
+processes. However in practical code it&rsquo;s actually pretty rare to see explicit
+message passing. For example say we&rsquo;re working on a chat server. A chat room
+could be written somewhat like this, using
+<a href="https://github.com/pragdave/otp_dsl">otp_dsl</a>:</p>
+
+<figure class='code'> <div class="highlight"><table><tr><td class="gutter"><pre class="line-numbers"><span class='line-number'>1</span>
+<span class='line-number'>2</span>
+<span class='line-number'>3</span>
+<span class='line-number'>4</span>
+<span class='line-number'>5</span>
+<span class='line-number'>6</span>
+<span class='line-number'>7</span>
+<span class='line-number'>8</span>
+<span class='line-number'>9</span>
+<span class='line-number'>10</span>
+<span class='line-number'>11</span>
+<span class='line-number'>12</span>
+<span class='line-number'>13</span>
+<span class='line-number'>14</span>
+<span class='line-number'>15</span>
+<span class='line-number'>16</span>
+<span class='line-number'>17</span>
+<span class='line-number'>18</span>
+<span class='line-number'>19</span>
+<span class='line-number'>20</span>
+<span class='line-number'>21</span>
+<span class='line-number'>22</span>
+<span class='line-number'>23</span>
+<span class='line-number'>24</span>
+</pre></td><td class='code'><pre><code class='elixir'><span class='line'><span class="k">defmodule</span> <span class="no">Chatroom</span> <span class="k">do</span>
+</span><span class='line'><span class="k">  </span><span class="kn">use</span> <span class="no">OtpDsl</span><span class="o">.</span><span class="no">GenServer</span><span class="p">,</span> <span class="ss">initial_state:</span> <span class="no">HashDict</span><span class="o">.</span><span class="n">new</span><span class="p">()</span>
+</span><span class='line'>
+</span><span class='line'>  <span class="n">defcall</span> <span class="n">enter</span><span class="p">(</span><span class="n">name</span><span class="p">),</span> <span class="n">users</span> <span class="k">do</span>
+</span><span class='line'><span class="k">    </span><span class="n">send_all</span><span class="p">(</span><span class="n">users</span><span class="p">,</span> <span class="s2">&quot;</span><span class="si">#{</span><span class="n">name</span><span class="si">}</span><span class="s2"> has entered the room&quot;</span><span class="p">)</span>
+</span><span class='line'>    <span class="c1"># _from is secretly filled in by defcall and contains the PID of the caller</span>
+</span><span class='line'>    <span class="n">reply</span><span class="p">(</span><span class="ss">:ok</span><span class="p">,</span> <span class="no">Dict</span><span class="o">.</span><span class="n">put</span><span class="p">(</span><span class="n">users</span><span class="p">,</span> <span class="n">name</span><span class="p">,</span> <span class="n">_from</span><span class="p">))</span>
+</span><span class='line'>  <span class="k">end</span>
+</span><span class='line'>
+</span><span class='line'>  <span class="n">defcall</span> <span class="n">leave</span><span class="p">(</span><span class="n">name</span><span class="p">),</span> <span class="n">users</span> <span class="k">do</span>
+</span><span class='line'><span class="k">    </span><span class="n">d</span> <span class="o">=</span> <span class="no">Dict</span><span class="o">.</span><span class="n">delete</span><span class="p">(</span><span class="n">users</span><span class="p">,</span> <span class="n">name</span><span class="p">)</span>
+</span><span class='line'>    <span class="n">send_all</span><span class="p">(</span><span class="n">users</span><span class="p">,</span> <span class="s2">&quot;</span><span class="si">#{</span><span class="n">name</span><span class="si">}</span><span class="s2"> has left the room&quot;</span><span class="p">)</span>
+</span><span class='line'>    <span class="n">reply</span><span class="p">(</span><span class="ss">:ok</span><span class="p">,</span> <span class="n">d</span><span class="p">)</span>
+</span><span class='line'>  <span class="k">end</span>
+</span><span class='line'>
+</span><span class='line'>  <span class="n">defcall</span> <span class="n">message</span><span class="p">(</span><span class="n">name</span><span class="p">,</span> <span class="n">message</span><span class="p">)</span> <span class="k">do</span>
+</span><span class='line'><span class="k">    </span><span class="n">send_all</span><span class="p">(</span><span class="n">users</span><span class="p">,</span> <span class="n">message</span><span class="p">)</span>
+</span><span class='line'>    <span class="n">reply</span><span class="p">(</span><span class="ss">:ok</span><span class="p">,</span> <span class="n">d</span><span class="p">)</span>
+</span><span class='line'>  <span class="k">end</span>
+</span><span class='line'>
+</span><span class='line'>  <span class="k">defp</span> <span class="n">send_all</span><span class="p">(</span><span class="n">users</span><span class="p">,</span> <span class="n">message</span><span class="p">)</span> <span class="k">do</span>
+</span><span class='line'><span class="k">    </span><span class="no">Enum</span><span class="o">.</span><span class="n">each</span><span class="p">(</span><span class="no">Dict</span><span class="o">.</span><span class="n">values</span><span class="p">(</span><span class="n">users</span><span class="p">),</span> <span class="no">User</span><span class="o">.</span><span class="n">send_line</span><span class="p">(</span><span class="nv">&amp;1</span><span class="p">,</span> <span class="n">message</span><span class="p">))</span>
+</span><span class='line'>  <span class="k">end</span>
+</span><span class='line'><span class="k">end</span>
+</span></code></pre></td></tr></table></div></figure>
+
+
+
+
+</div>
+  
+  
+    <footer>
+      <a rel="full-article" href="/blog/2013/09/14/thinking-in-elixir-hide-your-messages/">Read on &rarr;</a>
+    </footer>
+  
+
+
+    </article>
   
   
     <article>
@@ -322,6 +427,10 @@ attempt to explain things in an Elixir context.</p>
     <section>
   <h1>Recent Posts</h1>
   <ul id="recent_posts">
+    
+      <li class="post">
+        <a href="/blog/2013/09/14/thinking-in-elixir-hide-your-messages/">Thinking in Elixir: Hide Your Messages</a>
+      </li>
     
       <li class="post">
         <a href="/blog/2013/09/12/elixir-patterns-abstract-data-structures/">Elixir Patterns: Abstract Data Structures</a>

@@ -1,0 +1,377 @@
+<?xml version="1.0" encoding="utf-8"?>
+<feed xmlns="http://www.w3.org/2005/Atom">
+
+  <title><![CDATA[Category: Thinking in Elixir | A Cauldron of Black and White Stones]]></title>
+  <link href="http://pminten.github.io/blog/categories/thinking-in-elixir/atom.xml" rel="self"/>
+  <link href="http://pminten.github.io/"/>
+  <updated>2013-09-14T14:13:11+02:00</updated>
+  <id>http://pminten.github.io/</id>
+  <author>
+    <name><![CDATA[Peter Minten]]></name>
+    
+  </author>
+  <generator uri="http://octopress.org/">Octopress</generator>
+
+  
+  <entry>
+    <title type="html"><![CDATA[Thinking in Elixir: Hide Your Messages]]></title>
+    <link href="http://pminten.github.io/blog/2013/09/14/thinking-in-elixir-hide-your-messages/"/>
+    <updated>2013-09-14T13:39:00+02:00</updated>
+    <id>http://pminten.github.io/blog/2013/09/14/thinking-in-elixir-hide-your-messages</id>
+    <content type="html"><![CDATA[<p>In this new blog series I will try to explain some of the concepts behind
+programming in Elixir. This will be less practical oriented than my Elixir
+Patterns series and more focussed on the big ideas of functional concurrent
+programming as supported by Elixir.</p>
+
+<h2>Interface, messages and implementation</h2>
+
+<p>Elixir is a language in which concurrency is done by passing messages between
+processes. However in practical code it&rsquo;s actually pretty rare to see explicit
+message passing. For example say we&rsquo;re working on a chat server. A chat room
+could be written somewhat like this, using
+<a href="https://github.com/pragdave/otp_dsl">otp_dsl</a>:</p>
+
+<p><div class='bogus-wrapper'><notextile><figure class='code'> <div class="highlight"><table><tr><td class="gutter"><pre class="line-numbers"><span class='line-number'>1</span>
+<span class='line-number'>2</span>
+<span class='line-number'>3</span>
+<span class='line-number'>4</span>
+<span class='line-number'>5</span>
+<span class='line-number'>6</span>
+<span class='line-number'>7</span>
+<span class='line-number'>8</span>
+<span class='line-number'>9</span>
+<span class='line-number'>10</span>
+<span class='line-number'>11</span>
+<span class='line-number'>12</span>
+<span class='line-number'>13</span>
+<span class='line-number'>14</span>
+<span class='line-number'>15</span>
+<span class='line-number'>16</span>
+<span class='line-number'>17</span>
+<span class='line-number'>18</span>
+<span class='line-number'>19</span>
+<span class='line-number'>20</span>
+<span class='line-number'>21</span>
+<span class='line-number'>22</span>
+<span class='line-number'>23</span>
+<span class='line-number'>24</span>
+<span class='line-number'>25</span>
+<span class='line-number'>26</span>
+<span class='line-number'>27</span>
+<span class='line-number'>28</span>
+<span class='line-number'>29</span>
+<span class='line-number'>30</span>
+<span class='line-number'>31</span>
+<span class='line-number'>32</span>
+<span class='line-number'>33</span>
+<span class='line-number'>34</span>
+<span class='line-number'>35</span>
+<span class='line-number'>36</span>
+</pre></td><td class='code'><pre><code class='elixir'><span class='line'><span class="k">defmodule</span> <span class="no">Chatroom</span> <span class="k">do</span>
+</span><span class='line'><span class="k">  </span><span class="kn">use</span> <span class="no">OtpDsl</span><span class="o">.</span><span class="no">GenServer</span><span class="p">,</span> <span class="ss">initial_state:</span> <span class="no">HashDict</span><span class="o">.</span><span class="n">new</span><span class="p">()</span><span class="o">&lt;/</span><span class="n">p</span><span class="o">&gt;</span>
+</span><span class='line'>
+</span><span class='line'><span class="o">&lt;</span><span class="n">p</span><span class="o">&gt;</span>  <span class="n">defcall</span> <span class="n">enter</span><span class="p">(</span><span class="n">name</span><span class="p">),</span> <span class="n">users</span> <span class="k">do</span><span class="o">&lt;/</span><span class="n">p</span><span class="o">&gt;</span>
+</span><span class='line'>
+</span><span class='line'><span class="o">&lt;</span><span class="n">pre</span><span class="err">&gt;</span><span class="o">&lt;</span><span class="n">code</span><span class="o">&gt;</span><span class="n">send_all</span><span class="p">(</span><span class="n">users</span><span class="p">,</span> <span class="s2">&quot;</span><span class="si">#{</span><span class="n">name</span><span class="si">}</span><span class="s2"> has entered the room&quot;</span><span class="p">)</span>
+</span><span class='line'><span class="c1"># _from is secretly filled in by defcall and contains the PID of the caller</span>
+</span><span class='line'><span class="n">reply</span><span class="p">(</span><span class="ss">:ok</span><span class="p">,</span> <span class="no">Dict</span><span class="o">.</span><span class="n">put</span><span class="p">(</span><span class="n">users</span><span class="p">,</span> <span class="n">name</span><span class="p">,</span> <span class="n">_from</span><span class="p">))</span>
+</span><span class='line'><span class="o">&lt;/</span><span class="n">code</span><span class="err">&gt;</span><span class="o">&lt;/</span><span class="n">pre</span><span class="o">&gt;</span>
+</span><span class='line'>
+</span><span class='line'><span class="o">&lt;</span><span class="n">p</span><span class="o">&gt;</span>  <span class="k">end</span><span class="o">&lt;/</span><span class="n">p</span><span class="o">&gt;</span>
+</span><span class='line'>
+</span><span class='line'><span class="o">&lt;</span><span class="n">p</span><span class="o">&gt;</span>  <span class="n">defcall</span> <span class="n">leave</span><span class="p">(</span><span class="n">name</span><span class="p">),</span> <span class="n">users</span> <span class="k">do</span><span class="o">&lt;/</span><span class="n">p</span><span class="o">&gt;</span>
+</span><span class='line'>
+</span><span class='line'><span class="o">&lt;</span><span class="n">pre</span><span class="err">&gt;</span><span class="o">&lt;</span><span class="n">code</span><span class="o">&gt;</span><span class="n">d</span> <span class="o">=</span> <span class="no">Dict</span><span class="o">.</span><span class="n">delete</span><span class="p">(</span><span class="n">users</span><span class="p">,</span> <span class="n">name</span><span class="p">)</span>
+</span><span class='line'><span class="n">send_all</span><span class="p">(</span><span class="n">users</span><span class="p">,</span> <span class="s2">&quot;</span><span class="si">#{</span><span class="n">name</span><span class="si">}</span><span class="s2"> has left the room&quot;</span><span class="p">)</span>
+</span><span class='line'><span class="n">reply</span><span class="p">(</span><span class="ss">:ok</span><span class="p">,</span> <span class="n">d</span><span class="p">)</span>
+</span><span class='line'><span class="o">&lt;/</span><span class="n">code</span><span class="err">&gt;</span><span class="o">&lt;/</span><span class="n">pre</span><span class="o">&gt;</span>
+</span><span class='line'>
+</span><span class='line'><span class="o">&lt;</span><span class="n">p</span><span class="o">&gt;</span>  <span class="k">end</span><span class="o">&lt;/</span><span class="n">p</span><span class="o">&gt;</span>
+</span><span class='line'>
+</span><span class='line'><span class="o">&lt;</span><span class="n">p</span><span class="o">&gt;</span>  <span class="n">defcall</span> <span class="n">message</span><span class="p">(</span><span class="n">name</span><span class="p">,</span> <span class="n">message</span><span class="p">)</span> <span class="k">do</span><span class="o">&lt;/</span><span class="n">p</span><span class="o">&gt;</span>
+</span><span class='line'>
+</span><span class='line'><span class="o">&lt;</span><span class="n">pre</span><span class="err">&gt;</span><span class="o">&lt;</span><span class="n">code</span><span class="o">&gt;</span><span class="n">send_all</span><span class="p">(</span><span class="n">users</span><span class="p">,</span> <span class="n">message</span><span class="p">)</span>
+</span><span class='line'><span class="n">reply</span><span class="p">(</span><span class="ss">:ok</span><span class="p">,</span> <span class="n">d</span><span class="p">)</span>
+</span><span class='line'><span class="o">&lt;/</span><span class="n">code</span><span class="err">&gt;</span><span class="o">&lt;/</span><span class="n">pre</span><span class="o">&gt;</span>
+</span><span class='line'>
+</span><span class='line'><span class="o">&lt;</span><span class="n">p</span><span class="o">&gt;</span>  <span class="k">end</span><span class="o">&lt;/</span><span class="n">p</span><span class="o">&gt;</span>
+</span><span class='line'>
+</span><span class='line'><span class="o">&lt;</span><span class="n">p</span><span class="o">&gt;</span>  <span class="k">defp</span> <span class="n">send_all</span><span class="p">(</span><span class="n">users</span><span class="p">,</span> <span class="n">message</span><span class="p">)</span> <span class="k">do</span><span class="o">&lt;/</span><span class="n">p</span><span class="o">&gt;</span>
+</span><span class='line'>
+</span><span class='line'><span class="o">&lt;</span><span class="n">pre</span><span class="err">&gt;</span><span class="o">&lt;</span><span class="n">code</span><span class="o">&gt;</span><span class="no">Enum</span><span class="o">.</span><span class="n">each</span><span class="p">(</span><span class="no">Dict</span><span class="o">.</span><span class="n">values</span><span class="p">(</span><span class="n">users</span><span class="p">),</span> <span class="no">User</span><span class="o">.</span><span class="n">send_line</span><span class="p">(</span><span class="err">&amp;</span><span class="n">amp</span><span class="p">;</span><span class="m">1</span><span class="p">,</span> <span class="n">message</span><span class="p">))</span>
+</span><span class='line'><span class="o">&lt;/</span><span class="n">code</span><span class="err">&gt;</span><span class="o">&lt;/</span><span class="n">pre</span><span class="o">&gt;</span>
+</span><span class='line'>
+</span><span class='line'><span class="o">&lt;</span><span class="n">p</span><span class="o">&gt;</span>  <span class="k">end</span>
+</span><span class='line'><span class="k">end</span>
+</span></code></pre></td></tr></table></div></figure></notextile></div></p>
+
+<!-- more -->
+
+
+<p>This is a simple gen_server which has an API of three calls:</p>
+
+<ul>
+<li><code>enter(name)</code></li>
+<li><code>leave(name)</code></li>
+<li><code>message(name, message)</code></li>
+</ul>
+
+
+<p>When <code>enter</code> is called the chatroom adds the user to the list of users. The PID
+of the sender is associated with the name (used in <code>send_all</code> to send a message
+to all users). Because of how otp_dsl currently works the process gets the
+local name <code>chatroom</code>.</p>
+
+<p>If you look at the above code do you notice something? There are no messages in
+sight. Of course this is a bit of a trick since the whole point of otp_dsl is
+to simplify implementing OTP behaviours like gen_server. This is how the code
+would look when using the normal Elixir <code>GenServer.Behaviour</code>:</p>
+
+<p><div class='bogus-wrapper'><notextile><figure class='code'> <div class="highlight"><table><tr><td class="gutter"><pre class="line-numbers"><span class='line-number'>1</span>
+<span class='line-number'>2</span>
+<span class='line-number'>3</span>
+<span class='line-number'>4</span>
+<span class='line-number'>5</span>
+<span class='line-number'>6</span>
+<span class='line-number'>7</span>
+<span class='line-number'>8</span>
+<span class='line-number'>9</span>
+<span class='line-number'>10</span>
+<span class='line-number'>11</span>
+<span class='line-number'>12</span>
+<span class='line-number'>13</span>
+<span class='line-number'>14</span>
+<span class='line-number'>15</span>
+<span class='line-number'>16</span>
+<span class='line-number'>17</span>
+<span class='line-number'>18</span>
+<span class='line-number'>19</span>
+<span class='line-number'>20</span>
+<span class='line-number'>21</span>
+<span class='line-number'>22</span>
+<span class='line-number'>23</span>
+<span class='line-number'>24</span>
+<span class='line-number'>25</span>
+<span class='line-number'>26</span>
+<span class='line-number'>27</span>
+<span class='line-number'>28</span>
+<span class='line-number'>29</span>
+<span class='line-number'>30</span>
+<span class='line-number'>31</span>
+<span class='line-number'>32</span>
+<span class='line-number'>33</span>
+<span class='line-number'>34</span>
+<span class='line-number'>35</span>
+<span class='line-number'>36</span>
+<span class='line-number'>37</span>
+<span class='line-number'>38</span>
+<span class='line-number'>39</span>
+<span class='line-number'>40</span>
+<span class='line-number'>41</span>
+<span class='line-number'>42</span>
+<span class='line-number'>43</span>
+<span class='line-number'>44</span>
+<span class='line-number'>45</span>
+<span class='line-number'>46</span>
+<span class='line-number'>47</span>
+<span class='line-number'>48</span>
+<span class='line-number'>49</span>
+<span class='line-number'>50</span>
+<span class='line-number'>51</span>
+<span class='line-number'>52</span>
+<span class='line-number'>53</span>
+<span class='line-number'>54</span>
+<span class='line-number'>55</span>
+<span class='line-number'>56</span>
+<span class='line-number'>57</span>
+<span class='line-number'>58</span>
+<span class='line-number'>59</span>
+<span class='line-number'>60</span>
+<span class='line-number'>61</span>
+<span class='line-number'>62</span>
+<span class='line-number'>63</span>
+<span class='line-number'>64</span>
+<span class='line-number'>65</span>
+<span class='line-number'>66</span>
+<span class='line-number'>67</span>
+<span class='line-number'>68</span>
+<span class='line-number'>69</span>
+<span class='line-number'>70</span>
+<span class='line-number'>71</span>
+<span class='line-number'>72</span>
+<span class='line-number'>73</span>
+<span class='line-number'>74</span>
+<span class='line-number'>75</span>
+<span class='line-number'>76</span>
+<span class='line-number'>77</span>
+<span class='line-number'>78</span>
+</pre></td><td class='code'><pre><code class='elixir'><span class='line'><span class="k">defmodule</span> <span class="no">Chatroom2</span> <span class="k">do</span>
+</span><span class='line'><span class="k">  </span><span class="kn">use</span> <span class="no">GenServer</span><span class="o">.</span><span class="no">Behaviour</span><span class="o">&lt;/</span><span class="n">p</span><span class="o">&gt;</span>
+</span><span class='line'>
+</span><span class='line'><span class="o">&lt;</span><span class="n">p</span><span class="o">&gt;</span>  <span class="c1">## Interface&lt;/p&gt;</span>
+</span><span class='line'>
+</span><span class='line'><span class="o">&lt;</span><span class="n">p</span><span class="o">&gt;</span>  <span class="k">def</span> <span class="n">enter</span><span class="p">(</span><span class="n">name</span><span class="p">)</span> <span class="k">do</span><span class="o">&lt;/</span><span class="n">p</span><span class="o">&gt;</span>
+</span><span class='line'>
+</span><span class='line'><span class="o">&lt;</span><span class="n">pre</span><span class="err">&gt;</span><span class="o">&lt;</span><span class="n">code</span><span class="o">&gt;</span><span class="c1"># Normally I&#39;d allow a PID of the gen_server to call to be passed along but</span>
+</span><span class='line'><span class="c1"># in order to keep this code compatible with the otp_dsl variant (which</span>
+</span><span class='line'><span class="c1"># does&#39;t currently support that) we&#39;ll have to write it this way.</span>
+</span><span class='line'><span class="ss">:gen_server</span><span class="o">.</span><span class="n">call</span><span class="p">(</span><span class="ss">:chatroom</span><span class="p">,</span> <span class="p">{</span> <span class="ss">:enter</span><span class="p">,</span> <span class="n">name</span> <span class="p">})</span>
+</span><span class='line'><span class="o">&lt;/</span><span class="n">code</span><span class="err">&gt;</span><span class="o">&lt;/</span><span class="n">pre</span><span class="o">&gt;</span>
+</span><span class='line'>
+</span><span class='line'><span class="o">&lt;</span><span class="n">p</span><span class="o">&gt;</span>  <span class="k">end</span><span class="o">&lt;/</span><span class="n">p</span><span class="o">&gt;</span>
+</span><span class='line'>
+</span><span class='line'><span class="o">&lt;</span><span class="n">p</span><span class="o">&gt;</span>  <span class="k">def</span> <span class="n">leave</span><span class="p">(</span><span class="n">name</span><span class="p">)</span> <span class="k">do</span><span class="o">&lt;/</span><span class="n">p</span><span class="o">&gt;</span>
+</span><span class='line'>
+</span><span class='line'><span class="o">&lt;</span><span class="n">pre</span><span class="err">&gt;</span><span class="o">&lt;</span><span class="n">code</span><span class="o">&gt;</span><span class="ss">:gen_server</span><span class="o">.</span><span class="n">call</span><span class="p">(</span><span class="ss">:chatroom</span><span class="p">,</span> <span class="p">{</span> <span class="ss">:leave</span><span class="p">,</span> <span class="n">name</span> <span class="p">})</span>
+</span><span class='line'><span class="o">&lt;/</span><span class="n">code</span><span class="err">&gt;</span><span class="o">&lt;/</span><span class="n">pre</span><span class="o">&gt;</span>
+</span><span class='line'>
+</span><span class='line'><span class="o">&lt;</span><span class="n">p</span><span class="o">&gt;</span>  <span class="k">end</span><span class="o">&lt;/</span><span class="n">p</span><span class="o">&gt;</span>
+</span><span class='line'>
+</span><span class='line'><span class="o">&lt;</span><span class="n">p</span><span class="o">&gt;</span>  <span class="k">def</span> <span class="n">message</span><span class="p">(</span><span class="n">name</span><span class="p">,</span> <span class="n">message</span><span class="p">)</span> <span class="k">do</span><span class="o">&lt;/</span><span class="n">p</span><span class="o">&gt;</span>
+</span><span class='line'>
+</span><span class='line'><span class="o">&lt;</span><span class="n">pre</span><span class="err">&gt;</span><span class="o">&lt;</span><span class="n">code</span><span class="o">&gt;</span><span class="ss">:gen_server</span><span class="o">.</span><span class="n">call</span><span class="p">(</span><span class="ss">:chatroom</span><span class="p">,</span> <span class="p">{</span> <span class="ss">:message</span><span class="p">,</span> <span class="n">name</span><span class="p">,</span> <span class="n">message</span> <span class="p">})</span>
+</span><span class='line'><span class="o">&lt;/</span><span class="n">code</span><span class="err">&gt;</span><span class="o">&lt;/</span><span class="n">pre</span><span class="o">&gt;</span>
+</span><span class='line'>
+</span><span class='line'><span class="o">&lt;</span><span class="n">p</span><span class="o">&gt;</span>  <span class="k">end</span><span class="o">&lt;/</span><span class="n">p</span><span class="o">&gt;</span>
+</span><span class='line'>
+</span><span class='line'><span class="o">&lt;</span><span class="n">p</span><span class="o">&gt;</span>  <span class="c1">## Callback implementations&lt;/p&gt;</span>
+</span><span class='line'>
+</span><span class='line'><span class="o">&lt;</span><span class="n">p</span><span class="o">&gt;</span>  <span class="nv">@doc</span> <span class="no">false</span>
+</span><span class='line'>  <span class="c1"># @doc false stops this showing up in ex_doc, it&amp;rsquo;s a way of hiding</span>
+</span><span class='line'>  <span class="c1"># functions from documentation.</span>
+</span><span class='line'>  <span class="k">def</span> <span class="n">init</span><span class="p">(</span><span class="n">_args</span><span class="p">)</span> <span class="k">do</span><span class="o">&lt;/</span><span class="n">p</span><span class="o">&gt;</span>
+</span><span class='line'>
+</span><span class='line'><span class="o">&lt;</span><span class="n">pre</span><span class="err">&gt;</span><span class="o">&lt;</span><span class="n">code</span><span class="o">&gt;</span><span class="p">{</span> <span class="ss">:ok</span><span class="p">,</span> <span class="no">HashDict</span><span class="o">.</span><span class="n">new</span><span class="p">()</span> <span class="p">}</span>
+</span><span class='line'><span class="o">&lt;/</span><span class="n">code</span><span class="err">&gt;</span><span class="o">&lt;/</span><span class="n">pre</span><span class="o">&gt;</span>
+</span><span class='line'>
+</span><span class='line'><span class="o">&lt;</span><span class="n">p</span><span class="o">&gt;</span>  <span class="k">end</span><span class="o">&lt;/</span><span class="n">p</span><span class="o">&gt;</span>
+</span><span class='line'>
+</span><span class='line'><span class="o">&lt;</span><span class="n">p</span><span class="o">&gt;</span>  <span class="nv">@doc</span> <span class="no">false</span>
+</span><span class='line'>  <span class="k">def</span> <span class="n">handle_call</span><span class="p">({</span> <span class="ss">:enter</span><span class="p">,</span> <span class="n">name</span> <span class="p">},</span> <span class="n">from</span><span class="p">,</span> <span class="n">users</span><span class="p">)</span> <span class="k">do</span><span class="o">&lt;/</span><span class="n">p</span><span class="o">&gt;</span>
+</span><span class='line'>
+</span><span class='line'><span class="o">&lt;</span><span class="n">pre</span><span class="err">&gt;</span><span class="o">&lt;</span><span class="n">code</span><span class="o">&gt;</span><span class="n">send_all</span><span class="p">(</span><span class="n">users</span><span class="p">,</span> <span class="s2">&quot;</span><span class="si">#{</span><span class="n">name</span><span class="si">}</span><span class="s2"> has entered the room&quot;</span><span class="p">)</span>
+</span><span class='line'><span class="p">{</span> <span class="ss">:reply</span><span class="p">,</span> <span class="ss">:ok</span><span class="p">,</span> <span class="no">Dict</span><span class="o">.</span><span class="n">put</span><span class="p">(</span><span class="n">users</span><span class="p">,</span> <span class="n">name</span><span class="p">,</span> <span class="n">from</span><span class="p">)</span> <span class="p">}</span>
+</span><span class='line'><span class="o">&lt;/</span><span class="n">code</span><span class="err">&gt;</span><span class="o">&lt;/</span><span class="n">pre</span><span class="o">&gt;</span>
+</span><span class='line'>
+</span><span class='line'><span class="o">&lt;</span><span class="n">p</span><span class="o">&gt;</span>  <span class="k">end</span><span class="o">&lt;/</span><span class="n">p</span><span class="o">&gt;</span>
+</span><span class='line'>
+</span><span class='line'><span class="o">&lt;</span><span class="n">p</span><span class="o">&gt;</span>  <span class="k">def</span> <span class="n">handle_call</span><span class="p">({</span> <span class="ss">:leave</span><span class="p">,</span> <span class="n">name</span> <span class="p">},</span> <span class="n">_from</span><span class="p">,</span> <span class="n">users</span><span class="p">)</span> <span class="k">do</span><span class="o">&lt;/</span><span class="n">p</span><span class="o">&gt;</span>
+</span><span class='line'>
+</span><span class='line'><span class="o">&lt;</span><span class="n">pre</span><span class="err">&gt;</span><span class="o">&lt;</span><span class="n">code</span><span class="o">&gt;</span><span class="n">d</span> <span class="o">=</span> <span class="no">Dict</span><span class="o">.</span><span class="n">delete</span><span class="p">(</span><span class="n">users</span><span class="p">,</span> <span class="n">name</span><span class="p">)</span>
+</span><span class='line'><span class="n">send_all</span><span class="p">(</span><span class="n">users</span><span class="p">,</span> <span class="s2">&quot;</span><span class="si">#{</span><span class="n">name</span><span class="si">}</span><span class="s2"> has left the room&quot;</span><span class="p">)</span>
+</span><span class='line'><span class="p">{</span> <span class="ss">:reply</span><span class="p">,</span> <span class="ss">:ok</span><span class="p">,</span> <span class="n">d</span> <span class="p">}</span>
+</span><span class='line'><span class="o">&lt;/</span><span class="n">code</span><span class="err">&gt;</span><span class="o">&lt;/</span><span class="n">pre</span><span class="o">&gt;</span>
+</span><span class='line'>
+</span><span class='line'><span class="o">&lt;</span><span class="n">p</span><span class="o">&gt;</span>  <span class="k">end</span><span class="o">&lt;/</span><span class="n">p</span><span class="o">&gt;</span>
+</span><span class='line'>
+</span><span class='line'><span class="o">&lt;</span><span class="n">p</span><span class="o">&gt;</span>  <span class="k">def</span> <span class="n">handle_call</span><span class="p">({</span> <span class="ss">:message</span><span class="p">,</span> <span class="n">name</span><span class="p">,</span> <span class="n">message</span> <span class="p">},</span> <span class="n">_from</span><span class="p">,</span> <span class="n">users</span><span class="p">)</span> <span class="k">do</span><span class="o">&lt;/</span><span class="n">p</span><span class="o">&gt;</span>
+</span><span class='line'>
+</span><span class='line'><span class="o">&lt;</span><span class="n">pre</span><span class="err">&gt;</span><span class="o">&lt;</span><span class="n">code</span><span class="o">&gt;</span><span class="n">send_all</span><span class="p">(</span><span class="n">users</span><span class="p">,</span> <span class="n">message</span><span class="p">)</span>
+</span><span class='line'><span class="p">{</span> <span class="ss">:reply</span><span class="p">,</span> <span class="ss">:ok</span><span class="p">,</span> <span class="n">users</span> <span class="p">}</span>
+</span><span class='line'><span class="o">&lt;/</span><span class="n">code</span><span class="err">&gt;</span><span class="o">&lt;/</span><span class="n">pre</span><span class="o">&gt;</span>
+</span><span class='line'>
+</span><span class='line'><span class="o">&lt;</span><span class="n">p</span><span class="o">&gt;</span>  <span class="k">end</span><span class="o">&lt;/</span><span class="n">p</span><span class="o">&gt;</span>
+</span><span class='line'>
+</span><span class='line'><span class="o">&lt;</span><span class="n">p</span><span class="o">&gt;</span>  <span class="c1">## Private functions&lt;/p&gt;</span>
+</span><span class='line'>
+</span><span class='line'><span class="o">&lt;</span><span class="n">p</span><span class="o">&gt;</span>  <span class="k">defp</span> <span class="n">send_all</span><span class="p">(</span><span class="n">users</span><span class="p">,</span> <span class="n">message</span><span class="p">)</span> <span class="k">do</span><span class="o">&lt;/</span><span class="n">p</span><span class="o">&gt;</span>
+</span><span class='line'>
+</span><span class='line'><span class="o">&lt;</span><span class="n">pre</span><span class="err">&gt;</span><span class="o">&lt;</span><span class="n">code</span><span class="o">&gt;</span><span class="no">Enum</span><span class="o">.</span><span class="n">each</span><span class="p">(</span><span class="no">Dict</span><span class="o">.</span><span class="n">to_list</span><span class="p">(</span><span class="n">users</span><span class="p">),</span> <span class="k">fn</span> <span class="p">{</span> <span class="n">user</span><span class="p">,</span> <span class="n">pid</span> <span class="p">}</span> <span class="o">-</span><span class="err">&amp;</span><span class="n">gt</span><span class="p">;</span>
+</span><span class='line'>  <span class="no">User</span><span class="o">.</span><span class="n">send_line</span><span class="p">(</span><span class="n">user</span><span class="p">,</span> <span class="n">message</span><span class="p">)</span>
+</span><span class='line'><span class="k">end</span><span class="p">)</span>
+</span><span class='line'><span class="o">&lt;/</span><span class="n">code</span><span class="err">&gt;</span><span class="o">&lt;/</span><span class="n">pre</span><span class="o">&gt;</span>
+</span><span class='line'>
+</span><span class='line'><span class="o">&lt;</span><span class="n">p</span><span class="o">&gt;</span>  <span class="k">end</span>
+</span><span class='line'><span class="k">end</span>
+</span></code></pre></td></tr></table></div></figure></notextile></div></p>
+
+<p>Here the messages aren&rsquo;t immediately obvious (unless you&rsquo;re used to OTP) but
+they&rsquo;re more explicit. The <code>{ :enter, name }</code>, <code>{ :leave, name }</code> and <code>{
+:message, name, message }</code> are the messages, or well, part of them. When you
+call <code>:gen_server.call(pid, msg)</code> it actually sends <code>msg</code> inside a wrapper
+message that contains information that this is a gen_server call and what the
+PID of the sender is. It&rsquo;s all rather complicated stuff intended to make
+everything work as it should. Be glad OTP is here to help you, you really don&rsquo;t
+want to do this by hand.</p>
+
+<p>Anyway, to get back on the subject, we can see what goes into the messages in
+this version. Notice though that the general API hasn&rsquo;t changed. There are still
+API functions (the top section) which do nothing but put their arguments in a
+message and call <code>:gen_server.send/2</code> to send it.</p>
+
+<p>What has changed however is that where otp_dsl gives you the illusion that
+calls are one magic function (<code>defcall enter</code>) here it&rsquo;s clear that there are
+two functions: one to send a message to the process and one to handle the
+received message. Do note that these run in different processes, the <code>enter</code>
+function runs in the process that calls it while <code>handle_call</code> runs in the
+chatroom process, I remember it took me a long while before I got used to this
+different-functions-in-the-same-module-run-in-different-processes idea when I
+was learning Erlang/OTP.</p>
+
+<p>We could send messages from a different process to our chatroom but this is
+brittle, if we support this then we can&rsquo;t change the communication protocol
+(those <code>{ :enter ...}</code> tuples) because we can&rsquo;t know if some other process is
+using them. Having an explicit API simplifies things, other modules and
+processes need to know nothing about our code except our API. Sure, if you want
+to change the API you&rsquo;re still going to have a bit of a headache, but that&rsquo;s
+going to be true of any API in your program and you can apply the same
+techniques as everywhere else to compensate for it.</p>
+
+<p>Our modules keep their communication protocol internal to the module. This is
+the recommended technique when using OTP. It turns processes into a kind of
+active objects (active because they have their own &ldquo;thread&rdquo;), with the external
+API defining the methods. In general hiding knowledge about the details of
+message passing behind a &ldquo;normal&rdquo; API makes code easier to maintain, which is
+why this is a very big thought in Elixir.</p>
+
+<h2>A picture of how a gen_server works</h2>
+
+<p>To needlessly drive the point home I have made a picture which I don&rsquo;t want to
+waste, so here it is:</p>
+
+<p><img src="/assets/images/process_interface.svg" alt="Overview of communication to an OTP process" /></p>
+
+<p>This is a picture of a module that implements a gen_server with the usual
+external API and internal handles. The blue dots on the outer ring represent API
+functions (<code>enter</code> and friends) while the green dots on the inner ring represent
+message handlers (<code>handle_call</code>). This picture shows all three types of
+communication gen_server supports: calls (to get a reply), casts (fire and
+forget, don&rsquo;t wait for a reply) and infos (all other messages). It shows the
+generally useful forms of these: calls and casts come from the module itself
+while other messages come from outside the module (for example a message with
+some data from a socket). Note that there is no law that forbids you from having
+two API functions that would trigger the same message handler, this can be quite
+handy at times (for example if you have to keep a legacy API function).</p>
+
+<h2>Abstracting the user</h2>
+
+<p>Our chatrooms code sends messages to the user by taking the PIDs that sent the
+<code>enter</code> message and passing it to <code>User.send_line</code> (which will presumably send a
+message to the user processes that they should pass the line to the user). We
+know this is a PID because we got it from the OTP system. In the <code>Chatroom</code>
+module we don&rsquo;t <em>need</em> to know this is a PID though, we just need to know it&rsquo;s
+something we can pass to <code>User.send_line</code>. We honestly don&rsquo;t care if it&rsquo;s a PID,
+some integer, a reference (guaranteed unique value) or something else entirely.</p>
+
+<p>By using the <code>from</code> information from OTP we force a particular pattern: each
+user must be a separate process and the user processes must register themselves,
+another process can&rsquo;t do that (well, it can, but it&rsquo;s hard and hacky).</p>
+
+<p>There is another way to write <code>enter</code>. Instead of just asking for a name we can
+ask for some identifying token and a name. This will work just as well as long
+as <code>User.send_line</code> accepts the token. Now it&rsquo;s possible for some other process
+to enter a user into a chatroom (not sure if that&rsquo;s ever needed, but it&rsquo;s nice
+to have the option). We can also do things like having multiple types of users
+each with their own communication protocol and having <code>User.send_line</code> handle
+the differences based on information in the token. Again, not something that&rsquo;s
+immediately useful, but the flexibility is nice to have.</p>
+
+<p>Note that all it took to add that flexibility is that <code>enter</code> API function,
+message and handler got an extra parameter to replace the use of the <code>from</code>
+field. Sometimes flexibility is cheap.</p>
+
+<p></p>
+]]></content>
+  </entry>
+  
+</feed>
