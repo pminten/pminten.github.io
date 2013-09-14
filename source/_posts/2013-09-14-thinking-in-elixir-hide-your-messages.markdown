@@ -3,7 +3,6 @@ layout: post
 title: "Thinking in Elixir: Hide Your Messages"
 date: 2013-09-14 13:39
 categories: [elixir, "Thinking in Elixir"]
-published: false
 ---
 
 In this new blog series I will try to explain some of the concepts behind
