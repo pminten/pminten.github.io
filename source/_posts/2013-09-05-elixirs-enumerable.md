@@ -31,6 +31,8 @@ While the blog posts linked from Clojure's documentation are informative they
 are (naturally) about Clojure and not everybody understands that. So here's an
 attempt to explain things in an Elixir context.
 
+<!-- more -->
+
 This post consists of four main parts.
 
 * [A bit about what `Enumerable`, `Enum` and `Stream` are useful for.](#uses)

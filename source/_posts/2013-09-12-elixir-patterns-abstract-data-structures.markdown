@@ -34,6 +34,8 @@ tag of the record. This makes perfect sense as the protocol doesn't need to know
 anything about your record except how to recognize it, and that's what the tag
 is for.
 
+<!-- more -->
+
 ## An abstract binary tree
 
 Using record tags you can write an abstract binary tree module like this:

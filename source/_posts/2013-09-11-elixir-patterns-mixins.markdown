@@ -70,6 +70,8 @@ defmodule Enumerable.Mixin do
 end
 {% endhighlight %}
 
+<!-- more -->
+
 By simply writing `use Enumerable.Mixin` we now get `count` and `member?`
 defined in our module. The argument to `__using__` we're ignoring is a list of
 keywords that you can use with `use`, for example `use ExUnit.TestCase, async:
