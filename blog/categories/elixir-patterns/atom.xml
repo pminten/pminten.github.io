@@ -4,7 +4,7 @@
   <title><![CDATA[Category: Elixir Patterns | A Cauldron of Black and White Stones]]></title>
   <link href="http://pminten.github.io/blog/categories/elixir-patterns/atom.xml" rel="self"/>
   <link href="http://pminten.github.io/"/>
-  <updated>2013-09-13T13:49:13+02:00</updated>
+  <updated>2013-09-14T14:06:59+02:00</updated>
   <id>http://pminten.github.io/</id>
   <author>
     <name><![CDATA[Peter Minten]]></name>
@@ -59,6 +59,9 @@ record module, with <code>defrecordp</code> it is the record name.</p>
 tag of the record. This makes perfect sense as the protocol doesn&rsquo;t need to know
 anything about your record except how to recognize it, and that&rsquo;s what the tag
 is for.</p>
+
+<!-- more -->
+
 
 <h2>An abstract binary tree</h2>
 
@@ -450,6 +453,9 @@ module with a <code>__using__</code> macro.</p>
 <span class="o">&lt;</span><span class="n">p</span><span class="o">&gt;</span>  <span class="k">end</span>
 <span class="k">end</span>
 </code></pre></div></p>
+
+<!-- more -->
+
 
 <p>By simply writing <code>use Enumerable.Mixin</code> we now get <code>count</code> and <code>member?</code>
 defined in our module. The argument to <code>__using__</code> we&rsquo;re ignoring is a list of
