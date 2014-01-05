@@ -2,7 +2,7 @@
 <urlset xmlns='http://www.sitemaps.org/schemas/sitemap/0.9'>
     <url>
         <loc>http://pminten.github.io/blog/2013/09/05/elixirs-enumerable/</loc>
-        <lastmod>2013-09-14T10:56:17+02:00</lastmod>
+        <lastmod>2014-01-05T10:55:02+01:00</lastmod>
     </url>
     <url>
         <loc>http://pminten.github.io/blog/2013/09/11/elixir-patterns-mixins/</loc>
@@ -19,12 +19,16 @@
         <lastmod>2013-09-14T14:10:17+02:00</lastmod>
     </url>
     <url>
+        <loc>http://pminten.github.io/blog/2013/10/29/parallelism-in-elixir/</loc>
+        <lastmod>2013-10-29T16:16:24+01:00</lastmod>
+    </url>
+    <url>
         <loc>http://pminten.github.io/blog/archives/</loc>
-        <lastmod>2013-09-14T14:10:17+02:00</lastmod>
+        <lastmod>2014-01-05T10:55:02+01:00</lastmod>
     </url>
     <url>
         <loc>http://pminten.github.io/</loc>
-        <lastmod>2013-09-14T14:10:17+02:00</lastmod>
+        <lastmod>2014-01-05T10:55:02+01:00</lastmod>
     </url>
     <url>
         <loc>http://pminten.github.io/robots.txt</loc>

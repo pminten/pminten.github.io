@@ -4,7 +4,7 @@
   <title><![CDATA[Category: elixir | A Cauldron of Black and White Stones]]></title>
   <link href="http://pminten.github.io/blog/categories/elixir/atom.xml" rel="self"/>
   <link href="http://pminten.github.io/"/>
-  <updated>2013-10-01T11:26:56+02:00</updated>
+  <updated>2014-01-05T10:56:39+01:00</updated>
   <id>http://pminten.github.io/</id>
   <author>
     <name><![CDATA[Peter Minten]]></name>
@@ -12,6 +12,143 @@
   </author>
   <generator uri="http://octopress.org/">Octopress</generator>
 
+  
+  <entry>
+    <title type="html"><![CDATA[Parallelism in Elixir]]></title>
+    <link href="http://pminten.github.io/blog/2013/10/29/parallelism-in-elixir/"/>
+    <updated>2013-10-29T13:39:00+01:00</updated>
+    <id>http://pminten.github.io/blog/2013/10/29/parallelism-in-elixir</id>
+    <content type="html"><![CDATA[<p>Parallelization is something that comes up more and more now that processors get
+more and more cores. In this blog post I will take a look at how Elixir supports
+parallelism.</p>
+
+<p>First the usual lecture on parallelism and concurrency. These are often mixed
+up, probably because traditionally to get parallelism you needed to work with
+the tools of concurrency (threads and mutexes and all that jazz).</p>
+
+<p>Parallelism is fundamentally about taking something you can do in a sequential
+(one process/thread) program and making it faster by doing parts of it at the
+same time. Concurrency on the other hand is about making things possible that
+are impossible in a sequential program.</p>
+
+<p>For example when you have a function that blocks until it receives input from
+the keyboard and a function that blocks until it receives input from the network
+and you want to watch for both you&rsquo;re going to need multiple threads/processes
+and thus concurrency (assuming there&rsquo;s no <code>select(3)</code> or something available).</p>
+
+<p>On the other hand it&rsquo;s easy to count the words in a giant file sequentially, in
+just a single process/thread. But if you can split up the file and have multiple
+workers each count part of the file and those workers can run all at the same
+time (in parallel) you can get your result much faster.</p>
+
+<p>When working with parallelism you ideally want to convert a sequential algorithm
+into a parallel one <em>without changing the semantics</em>. Now the bad news, in
+Elixir this will not work. In Haskell it will. Haskell has deterministic
+parallelism, Elixir doesn&rsquo;t. Well, technically Haskell doesn&rsquo;t have
+deterministic parallelism (that&rsquo;s simply impossible to do with how computers
+work) but it&rsquo;s so good at hiding the non-determinism that for all intents and
+purposes it has deterministic parallelism.</p>
+
+<p>In Elixir we don&rsquo;t quite have it so easy as Haskell programmers. We have to make
+do with the tools that Erlang gives us. Ok, that&rsquo;s perhaps not the worst fate.
+Erlang supports concurrency quite well (understatement of the century) and with
+concurrency we can build parallelism.</p>
+
+<h2>A simple parallel word count</h2>
+
+<p>Let&rsquo;s think about parallel word count. How can we implement it using the tools
+of Elixir? First, consider how the algorithm works:</p>
+
+<ol>
+<li>Divide the input lines into equally sized groups.</li>
+<li>For each of the groups, in parallel, count the number of words.</li>
+<li>Sum the results.</li>
+</ol>
+
+
+<p>This is actually quite a well known pattern: divide-map-reduce. Any time you
+hear somebody talk about MapReduce this is the fundamental idea behind it:
+divide the work, map it to workers and reduce the results. There&rsquo;s more to it
+than that of course, but fundamentally it&rsquo;s this simple.</p>
+
+<p>Now, how can we map (pardon the pun) these steps to Elixir code? Dividing is
+fairly easy, because addition is commutative (<code>a + b == b + a</code>) we can simply
+split the lines into N lists like this:</p>
+
+<p>```elixir
+def divide(lines, n), do: do_divide(lines, List.duplicate([], n), [])</p>
+
+<p>defp do_divide([], o1, o2), do: o1 ++ o2
+defp do_divide([l|ls], [o|o1], o2), do: do_divide(ls, o1, [[l|o]|o2])
+defp do_divide(ls, [], o2), do: do_divide(ls, o2, [])
+```</p>
+
+<p>Running <code>divide([1,2,3,4,5,6,7,8,9,10], 3)</code> gives <code>[[8, 5, 2], [7, 6, 1], [10,
+9, 4, 3]]</code>, so the lines are neatly divided. Ok, order is weird but we&rsquo;ve already
+seen that that doesn&rsquo;t matter (addition is commutative). Compared to the obvious
+solution of slicing the list into equal pieces we don&rsquo;t need the length, which
+means this algorithm will be easier to adapt to a form that works with any
+enumerable. Mostly though it&rsquo;s because I learned functional programming in
+Haskell and this algorithm works well with lazyness. :)</p>
+
+<p>For each of these groups of lines we&rsquo;ll want to spawn a worker.</p>
+
+<p>```elixir
+def parcount_spawn(groups) do
+  master = self()
+  Enum.each(groups, fn group &ndash;></p>
+
+<pre><code>Process.spawn(fn -&gt;
+  # Gotta love closures: group is captured
+  # (If only I could do that so easily for the white Go groups)
+  count = Enum.map(group, &amp;length(split_words(&amp;1)))
+          |&gt; Enum.reduce(0, &amp;(&amp;1+&amp;2))
+  master &lt;- count
+end)
+</code></pre>
+
+<p>  end)
+end</p>
+
+<p>defp split_words(&ldquo;&rdquo;), do: [] # String.split gives [&ldquo;&rdquo;] in this case
+defp split_words(s), do: String.split(s)
+```</p>
+
+<p>Each of the workers counts the words in the lines in its group, sums them and
+sends the count to the master process (the one that spawned the workers).</p>
+
+<p>All that remains is to collect the subtotals and sum them.</p>
+
+<p>```elixir
+def parcount_collect(n) do
+  Enum.reduce(1..n, 0, fn _, total &ndash;></p>
+
+<pre><code>receive do
+  count -&gt; total + count
+end
+</code></pre>
+
+<p>  end)
+end
+```</p>
+
+<p>Here the reduce of a range is a bit of a trick in order to go into <code>receive</code> a
+specific number of times.</p>
+
+<p>To put it all together:</p>
+
+<p><code>elixir
+def parcount(lines, n) do
+  groups = divide(lines, n)
+  parcount_spawn(groups)
+  parcount_collect(n)
+end
+</code></p>
+
+<p>When we pass <code>parcount(["A", "B C", " ", "D D D ", ""], 3)</code> it neatly gives us
+<code>6</code>.</p>
+]]></content>
+  </entry>
   
   <entry>
     <title type="html"><![CDATA[Thinking in Elixir: Hide Your Messages]]></title>
@@ -1088,7 +1225,7 @@ that later). For example <code>map/2</code> can be very efficiently expressed us
 Here&rsquo;s the typical code for map:</p>
 
 <p><div class="highlight"><pre><code class="elixir"><span class="k">def</span> <span class="n">map</span><span class="p">([],</span> <span class="n">_</span><span class="p">),</span> <span class="k">do</span><span class="p">:</span> <span class="p">[]</span>
-<span class="k">def</span> <span class="n">map</span><span class="p">([</span><span class="n">h</span><span class="o">|</span><span class="n">t</span><span class="p">],</span> <span class="n">f</span><span class="p">),</span> <span class="k">do</span><span class="p">:</span> <span class="p">[</span><span class="n">f</span><span class="o">.</span><span class="p">(</span><span class="n">h</span><span class="p">)</span><span class="o">|</span><span class="n">t</span><span class="p">]</span>
+<span class="k">def</span> <span class="n">map</span><span class="p">([</span><span class="n">h</span><span class="o">|</span><span class="n">t</span><span class="p">],</span> <span class="n">f</span><span class="p">),</span> <span class="k">do</span><span class="p">:</span> <span class="p">[</span><span class="n">f</span><span class="o">.</span><span class="p">(</span><span class="n">h</span><span class="p">)</span><span class="o">|</span><span class="n">map</span><span class="p">(</span><span class="n">t</span><span class="p">,</span><span class="n">f</span><span class="p">)]</span>
 </code></pre></div></p>
 
 <p>Err, wait a minute. That can&rsquo;t be right. This function isn&rsquo;t tail recursive and
@@ -1274,7 +1411,7 @@ let&rsquo;s pretend all that isn&rsquo;t there.</p>
 <p>Given an open file (i.e. an IO device) this will cut up a file in blocks.  It
 can be used like this:</p>
 
-<p><div class="highlight"><pre><code class="elixir"><span class="no">File</span><span class="o">.</span><span class="n">open!</span><span class="p">(</span><span class="err">&amp;</span><span class="n">ldquo</span><span class="p">;</span><span class="o">/</span><span class="n">tmp</span><span class="o">/</span><span class="n">some_file</span><span class="err">&amp;</span><span class="n">rdquo</span><span class="p">;)</span> <span class="o">|&gt;</span> <span class="no">BlockReader</span><span class="o">.</span><span class="n">read</span><span class="p">()</span> <span class="o">|&gt;</span> <span class="no">Enum</span><span class="o">.</span><span class="n">to_list</span><span class="p">()</span>
+<p><div class="highlight"><pre><code class="elixir"><span class="no">File</span><span class="o">.</span><span class="n">open!</span><span class="p">(</span><span class="err">&amp;</span><span class="n">ldquo</span><span class="p">;</span><span class="o">/</span><span class="n">tmp</span><span class="o">/</span><span class="n">some_file</span><span class="err">&amp;</span><span class="n">rdquo</span><span class="p">;)</span> <span class="o">|&gt;</span> <span class="no">BlockReader</span><span class="o">.</span><span class="n">read!</span><span class="p">()</span> <span class="o">|&gt;</span> <span class="no">Enum</span><span class="o">.</span><span class="n">to_list</span><span class="p">()</span>
 </code></pre></div></p>
 
 <p>Quick question to see whether you&rsquo;ve been paying attention, did you notice that
@@ -1357,7 +1494,7 @@ don&rsquo;t have an accumulator. The <code>fun</code> field stores your stream f
 
 <p>The stream function should always accept a reducer function (I&rsquo;ll call
 this the &ldquo;inner&rdquo; reducer). If you&rsquo;re using an accumulator (the <code>acc</code> field is
-specified and not <code>nil</code>) it should also accept and something commonly called
+specified and not <code>nil</code>) it should also accept something commonly called
 <code>nesting</code> that you only need if you want to stop streaming before the input is
 done (more on that later). So a non-accumulator-using stream function should
 accept an inner reducer and an accumulator-using stream function should accept

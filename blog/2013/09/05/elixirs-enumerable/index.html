@@ -204,7 +204,7 @@ that later). For example <code>map/2</code> can be very efficiently expressed us
 Here&rsquo;s the typical code for map:</p>
 
 <div class="highlight"><pre><code class="elixir"><span class="k">def</span> <span class="n">map</span><span class="p">([],</span> <span class="n">_</span><span class="p">),</span> <span class="k">do</span><span class="p">:</span> <span class="p">[]</span>
-<span class="k">def</span> <span class="n">map</span><span class="p">([</span><span class="n">h</span><span class="o">|</span><span class="n">t</span><span class="p">],</span> <span class="n">f</span><span class="p">),</span> <span class="k">do</span><span class="p">:</span> <span class="p">[</span><span class="n">f</span><span class="o">.</span><span class="p">(</span><span class="n">h</span><span class="p">)</span><span class="o">|</span><span class="n">t</span><span class="p">]</span>
+<span class="k">def</span> <span class="n">map</span><span class="p">([</span><span class="n">h</span><span class="o">|</span><span class="n">t</span><span class="p">],</span> <span class="n">f</span><span class="p">),</span> <span class="k">do</span><span class="p">:</span> <span class="p">[</span><span class="n">f</span><span class="o">.</span><span class="p">(</span><span class="n">h</span><span class="p">)</span><span class="o">|</span><span class="n">map</span><span class="p">(</span><span class="n">t</span><span class="p">,</span><span class="n">f</span><span class="p">)]</span>
 </code></pre></div>
 
 
@@ -375,7 +375,7 @@ let&rsquo;s pretend all that isn&rsquo;t there.</p>
 <p>Given an open file (i.e. an IO device) this will cut up a file in blocks.  It
 can be used like this:</p>
 
-<div class="highlight"><pre><code class="elixir"><span class="no">File</span><span class="o">.</span><span class="n">open!</span><span class="p">(</span><span class="s2">&quot;/tmp/some_file&quot;</span><span class="p">)</span> <span class="o">|&gt;</span> <span class="no">BlockReader</span><span class="o">.</span><span class="n">read</span><span class="p">()</span> <span class="o">|&gt;</span> <span class="no">Enum</span><span class="o">.</span><span class="n">to_list</span><span class="p">()</span>
+<div class="highlight"><pre><code class="elixir"><span class="no">File</span><span class="o">.</span><span class="n">open!</span><span class="p">(</span><span class="s2">&quot;/tmp/some_file&quot;</span><span class="p">)</span> <span class="o">|&gt;</span> <span class="no">BlockReader</span><span class="o">.</span><span class="n">read!</span><span class="p">()</span> <span class="o">|&gt;</span> <span class="no">Enum</span><span class="o">.</span><span class="n">to_list</span><span class="p">()</span>
 </code></pre></div>
 
 
@@ -459,7 +459,7 @@ don&rsquo;t have an accumulator. The <code>fun</code> field stores your stream f
 
 <p>The stream function should always accept a reducer function (I&rsquo;ll call
 this the &ldquo;inner&rdquo; reducer). If you&rsquo;re using an accumulator (the <code>acc</code> field is
-specified and not <code>nil</code>) it should also accept and something commonly called
+specified and not <code>nil</code>) it should also accept something commonly called
 <code>nesting</code> that you only need if you want to stop streaming before the input is
 done (more on that later). So a non-accumulator-using stream function should
 accept an inner reducer and an accumulator-using stream function should accept
@@ -597,6 +597,10 @@ advised to) define your own stream functions.</p>
   <ul id="recent_posts">
     
       <li class="post">
+        <a href="/blog/2013/10/29/parallelism-in-elixir/">Parallelism in Elixir</a>
+      </li>
+    
+      <li class="post">
         <a href="/blog/2013/09/14/thinking-in-elixir-hide-your-messages/">Thinking in Elixir: Hide Your Messages</a>
       </li>
     
@@ -626,7 +630,7 @@ advised to) define your own stream functions.</p>
     </div>
   </div>
   <footer role="contentinfo"><p>
-  Copyright &copy; 2013 - Peter Minten -
+  Copyright &copy; 2014 - Peter Minten -
   <span class="credit">Powered by <a href="http://octopress.org">Octopress</a></span>
 </p>
 
